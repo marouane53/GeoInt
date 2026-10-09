@@ -9,6 +9,7 @@
 | `calling_codes.json` | Country calling codes for countries and regions | [en.wikipedia.org/wiki/List_of_telephone_country_codes](https://en.wikipedia.org/wiki/List_of_telephone_country_codes) | 2026-09-14 | 281 | Derived from Wikipedia, CC BY-SA 4.0 |
 | `driving_side.json` | Driving side by country | [en.wikipedia.org/wiki/Left-_and_right-hand_traffic](https://en.wikipedia.org/wiki/Left-_and_right-hand_traffic) | 2026-09-14 | 236 | Derived from Wikipedia, CC BY-SA 4.0 |
 | `territories.json` | Overseas territories and dependencies | [en.wikipedia.org/wiki/List_of_dependent_territories](https://en.wikipedia.org/wiki/List_of_dependent_territories) | 2026-09-14 | 60 | Derived from Wikipedia, CC BY-SA 4.0 |
+| `plate_codes.json` | Regional plate codes outside China with the era each was used: IT (1905–1927 numbers, 1927–1994 province codes, defunct codes), ES (1900–2000 provinces), FR (département numbers 1950–2009 + French Algeria to 1962), DE, AT, CH, GR, TR, GB (memory tags + age/suffix/prefix letters that date a car), MA (prefectures 1–89) | One Wikipedia page per country (`PLATE_PAGES` in `clues.py`; each country's URL is kept in the file) | 2026-10-09 | 2103 | Derived from Wikipedia, CC BY-SA 4.0 |
 | `cn_admin.json` | China admin division codes at three levels (province, city, county) | [modood/Administrative-divisions-of-China](https://github.com/modood/Administrative-divisions-of-China) `dist/pca-code.json` | 2026-09-14 | 3420 | WTFPL |
 | `country_names.json` | Chinese–English country and region name mapping, with aliases | Hand-compiled | 2026-09-14 | 300 | MIT (with this repository) |
 | `countries.json` | 250 countries/territories: ISO codes, names, capital, continent, TLD, currency, phone prefix, postal format/regex, languages, neighbours, driving side, population-weighted centre and extent | [GeoNames countryInfo.txt](https://download.geonames.org/export/dump/countryInfo.txt) + `driving_side.json` + GeoNames cities500 | 2026-10-08 | 250 | CC BY 4.0 (GeoNames) |
@@ -17,7 +18,7 @@
 
 Notes:
 
-- The five Wikipedia-sourced tables are factual data scraped and compiled from the tables in the corresponding articles. Wikipedia text is licensed under CC BY-SA 4.0; these five tables are released under the same license, with attribution to Wikipedia and its editors.
+- The six Wikipedia-sourced tables are factual data scraped and compiled from the tables in the corresponding articles. Wikipedia text is licensed under CC BY-SA 4.0; these six tables are released under the same license, with attribution to Wikipedia and its editors.
 - The `letter_notes_unverified` block under the `渝` (Chongqing) entry in `cn_plates.json` (municipality plate letter zones) does not come from Wikipedia; it comes from a general-knowledge table and is unverified. `clues.py` marks it unverified in its output.
 - `countries.json` is rebuilt with `geodata.py build-countries`; `driving_side.json` rows marked `curated` were corrected by hand (the scrape had marked mainland China as left-hand traffic).
 - `country_names.json` is a hand-compiled mapping table; the keys of `en2zh` match the English spellings used in the other tables, and `aliases` maps short names, traditional-character names, former names, and English abbreviations to `en2zh` keys.

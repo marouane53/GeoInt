@@ -10,6 +10,7 @@ Data outside China is very complete; in China, roads, rivers, railways, power li
 OSM data in China is incomplete: results can only be a source of candidates, not grounds for exclusion.
 
   find       find features of one kind within an area
+  addr       house numbers → candidate buildings; several numbers (e.g. 214 and 226) must co-occur within N meters
   near       find A that has B within N meters (optionally also C)
   crossings  line-to-point: bridges, dams, ferries, level crossings on a river / railway / road (level crossings estimate track count from node count)
   route      bus / rail / ferry route number → sample points along the route, turning "search the whole city" into "search along one line"
@@ -25,6 +26,8 @@ Outputs JSON {name or id: [lat, lon]} (WGS84), which can go straight to tiles.py
 
 Examples (江苏省 = Jiangsu Province, 长江 = Yangtze River):
   osm.py find --bbox 30.24,120.12,30.27,120.17 '["highway"="street_lamp"]'
+  osm.py addr --area "Porto" --number 145 --out a.json                    # every building numbered 145
+  osm.py addr --area "Lisboa" --number 214,226 --within 60 --out a.json  # buildings numbered 214 with a 226 within 60 m
   osm.py near --area 江苏省 --a '["railway"="rail"]["highspeed"="yes"]["bridge"]' --b '["power"="tower"]' --within 700 --c '["waterway"="river"]' --within-c 100
   osm.py crossings --bbox 31.9,118.4,32.3,119.0 --line '["waterway"="river"]["name"="长江"]' --kind bridge,dam,ferry
   osm.py crossings --bbox <s,w,n,e> --line '["railway"="rail"]' --kind level_crossing
@@ -506,6 +509,33 @@ def _match(el: dict, flt: str) -> bool:
     return True
 
 
+def cmd_addr(args) -> dict:
+    """House numbers → candidate points. One number lists every building with it; several numbers keep only places where they co-occur within --within m.
+
+    A readable house number is a strong, searchable clue. Two visible numbers that are close on the same street
+    (say 214 on a gate and 226 on a mailbox) collapse a whole city to a handful of blocks: the first number is the anchor,
+    each other number must have an instance within --within m of it. When OSM has no addresses for the area
+    (common outside well-mapped cities), fall back to a web search: site:<the country's main property portal> or the national address register
+    with the number and town in quotes, then check the listing photos and Street View.
+    """
+    pre, sc = _scope(args)
+    nums = [n for n in args.number.split(",") if n]
+    tag = lambda n: f'["addr:housenumber"="{n}"]'
+    if len(nums) == 1:
+        ql = f"[out:json][timeout:180];{pre}nwr{tag(nums[0])}{sc};out center tags;"
+    else:
+        q = f"nwr{tag(nums[0])}{sc}->.a;"
+        for n in nums[1:]:
+            q += f"nwr{tag(n)}(around.a:{args.within:.0f}){sc}->.x;nwr.a(around.x:{args.within:.0f}){sc}->.a;"
+        ql = f"[out:json][timeout:200];{pre}{q}.a out center tags;"
+    pts = _points(run(ql, args.proxy, args.cache))
+    print(f"{len(pts)} building(s) with house number {nums[0]}" + (f" that have {', '.join(nums[1:])} within {args.within:.0f} m" if len(nums) > 1 else ""))
+    if not pts:
+        print("  0 can mean the area has no address data in OSM (check osm.py coverage --filter '[\"addr:housenumber\"]'); "
+              "then search the web: the number + town in quotes on a property portal (site:) or the national address register")
+    return pts
+
+
 def cmd_geom(args) -> dict:
     """Any filter → GeoJSON (keeps geometry for lines, polygons and points), for custom analysis or overlays."""
     pre, sc = _scope(args)
@@ -676,6 +706,11 @@ def main() -> None:
     f.add_argument("filter", help='Overpass tag filter, e.g. \'["amenity"="fuel"]\'')
     scope(f)
 
+    ad = sub.add_parser("addr", help="house numbers → candidate buildings; several numbers must co-occur within --within m (e.g. 214 near 226)")
+    ad.add_argument("--number", required=True, help='house number, or several comma-separated that must be close, e.g. "145" or "214,226"')
+    ad.add_argument("--within", type=float, default=50, help="max distance in meters between the numbers when several are given, default 50")
+    scope(ad)
+
     n = sub.add_parser("near")
     n.add_argument("--a", required=True, help="the main feature to find")
     n.add_argument("--b", required=True, help="feature that must be near the main feature")
@@ -772,6 +807,8 @@ def main() -> None:
         pts = cmd_buildings(args)
     elif args.cmd == "street-scan":
         pts = cmd_street_scan(args)
+    elif args.cmd == "addr":
+        pts = cmd_addr(args)
     else:
         if args.cmd == "raw":
             ql = args.file.read_text(encoding="utf-8")

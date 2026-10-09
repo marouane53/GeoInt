@@ -90,6 +90,10 @@ def summary(photo: Path, out: Path, log: dict, total: float, rev: bool) -> str:
         for pv in jload(out / "meta" / "meta.json").get("digest", {}).get("previews", []) or []:
             if pv.get("note"):
                 L.append(f"- Embedded {pv['tag']}: {pv['note']} → `meta/{pv['file']}`")
+        for mv in meta.get("motion_video", []) or []:
+            f = mv["file"]
+            L.append(f"- **Motion photo**: embedded video `meta/{f}` ({mv['bytes'] // 1024} KB) — more frames and angles; "
+                     f"`ffmpeg -i meta/{f} -vf fps=2 meta/motion_%02d.jpg` and read the clearest")
         if (meta.get("provenance") or {}).get("WARNING"):
             L.append(f"- **{meta['provenance']['WARNING']}**")
         if not g and not t and not meta.get("filename_hints"):

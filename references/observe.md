@@ -35,7 +35,7 @@ uv run scripts/imgprep.py zoom photo.jpg --box x0,y0,x1,y1 --scale 4 --out z1.pn
 
 ## 3. Layer 2: vehicles and roads
 
-- **Plates**: characters (province/city code) → if unreadable, background color, color bands, graphics, border → failing that, aspect ratio (Europe long and narrow, North America about 2:1). Note where the vehicle is parked (plates in a parking lot count only as weak).
+- **Plates**: characters (province/city code) → if unreadable, background color, color bands, graphics, border → failing that, aspect ratio (Europe long and narrow, North America about 2:1). Note where the vehicle is parked (plates in a parking lot count only as weak). A regional code → `clues.py lookup plate-code <code> [--country XX]` (place + the years the code was in use: old regional plates date the photo too); a dark or blurred plate → `imgprep.py reveal` first.
 - **Driving side**: which side traffic keeps to, which side the driver's seat is on, which way cars parked at the roadside face.
 - **Public transport**: bus operator abbreviation, route number, rear ads; taxi color; bus roof color (clearest in top-down shots).
 - Road marking color and style, guardrails, curb paint (alternating red and white, etc.), streetlight design and color, gutters, whether there is a grass strip between sidewalk and roadway.

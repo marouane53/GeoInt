@@ -275,6 +275,35 @@ def extract_previews(path: Path, out_dir: Path, main_size: list[int] | None) -> 
     return res
 
 
+def extract_motion(path: Path, out_dir: Path) -> list[dict]:
+    """Pull the embedded video out of a motion photo (Google/Samsung/Pixel JPEGs carry an MP4 after the still): more
+    frames and slightly different angles than the single frame, and it is not always stripped on sharing."""
+    res = []
+    if shutil.which("exiftool"):
+        for tag in ("EmbeddedVideoFile", "MotionPhotoVideo", "MicroVideo", "EmbeddedVideo"):
+            r = subprocess.run(["exiftool", "-b", f"-{tag}", str(path)], capture_output=True)
+            if len(r.stdout) > 2000:
+                p = out_dir / f"motion_{tag}.mp4"
+                p.write_bytes(r.stdout)
+                res.append({"tag": tag, "file": p.name, "bytes": len(r.stdout),
+                            "note": "embedded video — extract frames with ffmpeg and run recon on the clearest"})
+                return res
+    data = path.read_bytes()                                   # byte-scan: an MP4 'ftyp' box appended after the primary image
+    i = data.find(b"ftyp")
+    while i != -1:
+        start = i - 4
+        if start > 1000 and int.from_bytes(data[start:start + 4], "big") >= 8 and data[i + 4:i + 8].isalnum():
+            mp4 = data[start:]
+            if len(mp4) > 2000:
+                p = out_dir / "motion_trailer.mp4"
+                p.write_bytes(mp4)
+                res.append({"tag": "trailer-scan", "file": p.name, "bytes": len(mp4), "offset": start,
+                            "note": "video appended after the image — extract frames with ffmpeg and run recon on the clearest"})
+                break
+        i = data.find(b"ftyp", i + 4)
+    return res
+
+
 # ------------------------------------------------------------------ digest
 
 def digest(path: Path, raw: dict) -> dict:
@@ -455,6 +484,11 @@ def main() -> None:
         args.out_dir.mkdir(parents=True, exist_ok=True)
         if not args.no_previews:
             previews = extract_previews(path, args.out_dir, d["image"].get("size"))
+            motion = extract_motion(path, args.out_dir)
+            if motion:
+                d["motion_video"] = motion
+                for mv in motion:
+                    print(f"motion photo: extracted {mv['file']} ({mv['bytes']} bytes) — {mv['note']}")
         d["previews"] = previews
         raw_clean = {k: v for k, v in raw.items() if not SKIP_KEYS.search(k) or k.startswith("File:")}
         (args.out_dir / "meta.json").write_text(json.dumps({"digest": d, "raw": raw_clean}, ensure_ascii=False, indent=1, default=str),

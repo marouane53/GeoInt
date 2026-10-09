@@ -29,10 +29,11 @@ timestamps in this computer's time zone; set `GEOINT_PHOTOS` / `GEOINT_TZ`, or p
 |---|---|
 | Archive and scoring | `photo_session.py` (start / finish / truth / scoreboard / list), `bench.py` |
 | One-command local first pass | `recon.py` → `meta.py`, `intake.py`, `ocr.py`, `textgeo.py`, `detect.py`, `calib.py`, `prior.py` |
-| Text → place | `textgeo.py` (scripts, telltale letters, language, phone numbers, domains, postal codes, currency, regional words, ~50k brands, GeoNames places), `geodata.py`, `clues.py` |
+| Text → place | `textgeo.py` (scripts, telltale letters, language, phone numbers incl. unreadable digits, domains, postal codes, currency, regional words, ~50k brands, GeoNames places), `geodata.py`, `clues.py` (incl. 2,100 regional plate codes across ten countries, with the years each was in use) |
 | Reasoning ledger | `board.py` — candidates, clues, likelihood ratios capped by evidence type, exclusion rules, rank / next / check / report |
-| Street level | `pano.py` (every provider plus your own manifests: coverage, list, render, sheet), `sweep.py` (rank every panorama of whole towns with MegaLoc), `gsv.py`, `refsheet.py` (real Street View rows per candidate country or region), `match.py`, `baidu_pano.py` |
-| Maps and geometry | `osm.py`, `poi.py`, `gazetteer.py`, `tiles.py`, `sat_scan.py`, `terrain.py`, `sun.py`, `geo.py`, `pose.py`, `evidence.py` |
+| Street level | `pano.py` (every provider plus your own manifests: coverage, list, render, sheet), `sweep.py` (rank every panorama of whole towns with MegaLoc), `gsv.py`, `refsheet.py` (real Street View rows per candidate country, region or town), `match.py`, `baidu_pano.py` |
+| Clue → short list | `opendata.py` (city open-data portals: bus lanes, street trees, hydrants… filtered to candidate points), `osm.py addr` (house numbers, alone or co-occurring) |
+| Maps and geometry | `osm.py`, `poi.py`, `gazetteer.py`, `tiles.py` (incl. NASA daily satellite passes), `sat_scan.py`, `terrain.py`, `sun.py` (incl. past weather by day), `geo.py`, `pose.py`, `evidence.py` (incl. colour-coded match sheets) |
 | Local models | StreetCLIP + GeoCLIP world prior (`prior.py`), OWLv2 object crops (`detect.py`), GeoCalib camera calibration (`calib.py`), MegaLoc place recognition (`sweep.py`, `match.py`), DINOv2/CLIP matching |
 
 The skill works end to end without asking questions: reverse image search, web search, maps and Street View

@@ -9,6 +9,7 @@
   edges     one upscaled image for each of the four edges and four corners — ropes in corners, a boat bow at the bottom, small road signs are the easiest to miss
   variants  variants for reverse image search: tight crop / horizontal flip / enhanced grayscale / color-cast removal / upscale; optional perspective rectification
   grid      cut into N×M tiles, for "search only a part" in reverse image search
+  reveal    brighten and stretch a dark or flat crop several ways (levels, equalize, shadow-lift gammas, CLAHE) to read text or a plate hidden in shadow
   piers     take a brightness profile along a few rows below the bridge deck and find the pixel columns of the bridge piers (for back-solving the camera position)
 
 Coordinates are always original-image pixels x0,y0,x1,y1 (top-left, bottom-right). Check the original image size first with `exif.py` or PIL.
@@ -19,6 +20,7 @@ Examples:
   imgprep.py variants photo.jpg --box 300,120,900,760 --prefix left --out-dir v/     # → v/left_crop.jpg left_flip.jpg …
   imgprep.py variants photo.jpg --persp 312,140,880,95,905,770,290,720 --out-dir v/   # rectify four corners (top-left top-right bottom-right bottom-left)
   imgprep.py grid photo.jpg --rows 2 --cols 3 --out-dir tiles/
+  imgprep.py reveal photo.jpg --box 820,540,1080,660 --out-dir reveal/        # read a plate/sign lost in shadow
   imgprep.py piers photo.jpg --rows 926:940 --out cols.json --sheet piers.jpg
 
 piers output JSON:
@@ -67,6 +69,80 @@ def perspective(im: Image.Image, quad: list[float]) -> Image.Image:
     h = int(max(((x3 - x0) ** 2 + (y3 - y0) ** 2) ** .5, ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** .5))
     # PIL's QUAD transform: the output rectangle's four corners come, in order, from the source's top-left, bottom-left, bottom-right, top-right
     return im.transform((w, h), Image.QUAD, (x0, y0, x3, y3, x2, y2, x1, y1), Image.BICUBIC)
+
+
+def _clahe(gray, tiles: int = 8, clip: float = 3.0):
+    """Contrast-limited adaptive histogram equalization on a 2-D uint8 array (numpy). Pulls digits out of dark plates and signs."""
+    import numpy as np
+    h, w = gray.shape
+    ty, tx = max(1, h // tiles), max(1, w // tiles)
+    ny, nx = (h + ty - 1) // ty, (w + tx - 1) // tx
+    luts = np.empty((ny, nx, 256), np.uint8)
+    for iy in range(ny):
+        for ix in range(nx):
+            blk = gray[iy * ty:(iy + 1) * ty, ix * tx:(ix + 1) * tx]
+            hist = np.bincount(blk.ravel(), minlength=256).astype(np.float64)
+            limit = clip * blk.size / 256
+            excess = np.maximum(hist - limit, 0).sum()
+            hist = np.minimum(hist, limit) + excess / 256
+            cdf = hist.cumsum()
+            luts[iy, ix] = np.clip(255 * (cdf - cdf[0]) / max(cdf[-1] - cdf[0], 1), 0, 255).astype(np.uint8)
+    out = np.empty_like(gray)
+    for y in range(h):
+        fy = min(max((y - ty / 2) / ty, 0), ny - 1)
+        y0 = int(fy); wy = fy - y0; y1 = min(y0 + 1, ny - 1)
+        row = gray[y]
+        fx = np.clip((np.arange(w) - tx / 2) / tx, 0, nx - 1)
+        x0 = fx.astype(int); wx = fx - x0; x1 = np.minimum(x0 + 1, nx - 1)
+        top = luts[y0, x0, row] * (1 - wx) + luts[y0, x1, row] * wx
+        bot = luts[y1, x0, row] * (1 - wx) + luts[y1, x1, row] * wx
+        out[y] = (top * (1 - wy) + bot * wy).astype(np.uint8)
+    return out
+
+
+def reveal(crop: Image.Image, scale: float):
+    """Several brightenings/contrast stretches of one crop, to read text or plates hidden in dark or flat areas (a levels/curves pass).
+
+    Returns [(label, image)] at the chosen scale. Levels (autocontrast), histogram equalize, two shadow-lift gammas, a
+    curves-style shadow boost, a high-contrast grayscale, and adaptive local contrast (CLAHE).
+    """
+    import numpy as np
+    base = crop
+    if scale != 1:
+        base = crop.resize((max(1, int(crop.width * scale)), max(1, int(crop.height * scale))), Image.LANCZOS)
+    g = ImageOps.grayscale(base)
+    gamma = lambda im, k: im.point(lambda v: int(255 * (v / 255) ** (1 / k)))   # k>1 lifts shadows
+    curve = lambda v: int(min(255, 255 * (v / 255) ** 0.45))                    # strong low-end lift, soft highlights
+    # tiny cutoff: a plate or a few letters can be well under 1 % of the crop, and a 1 % cutoff would clip them away as outliers
+    out = [("crop", base.filter(ImageFilter.UnsharpMask(radius=2, percent=120, threshold=2))),
+           ("levels", ImageOps.autocontrast(base, cutoff=0.05)),
+           ("equalize", ImageOps.equalize(base)),
+           ("gamma1.8", gamma(base, 1.8)),
+           ("gamma2.6", gamma(base, 2.6)),
+           ("shadows", Image.merge("RGB", [ch.point(curve) for ch in base.convert("RGB").split()])),
+           ("gray", ImageOps.autocontrast(g, cutoff=0.05).convert("RGB")),
+           ("clahe", Image.fromarray(_clahe(np.asarray(g))).convert("RGB"))]
+    return [(name, im.convert("RGB")) for name, im in out]
+
+
+def reveal_sheet(panels, out: Path) -> None:
+    """Tile labelled panels into one image for a quick read."""
+    cols = 2 if len(panels) <= 4 else 3
+    rows = (len(panels) + cols - 1) // cols
+    cw = max(p[1].width for p in panels)
+    ch = max(p[1].height for p in panels)
+    pad, bar = 8, 20
+    sheet = Image.new("RGB", (cols * cw + (cols + 1) * pad, rows * (ch + bar) + (rows + 1) * pad), (24, 24, 24))
+    from PIL import ImageDraw
+    d = ImageDraw.Draw(sheet)
+    for i, (name, im) in enumerate(panels):
+        r, c = divmod(i, cols)
+        x = pad + c * (cw + pad)
+        y = pad + r * (ch + bar + pad)
+        d.text((x, y), name, fill=(255, 220, 90))
+        sheet.paste(im, (x, y + bar))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(out, quality=92)
 
 
 def _range(s: str) -> tuple[int, int]:
@@ -189,6 +265,13 @@ def main() -> None:
     g.add_argument("--overlap", type=float, default=0.15)
     g.add_argument("--out-dir", type=Path, required=True)
 
+    rv = sub.add_parser("reveal", help="brighten/stretch a dark or flat crop several ways to read hidden text or a plate")
+    rv.add_argument("image", type=Path)
+    rv.add_argument("--box", type=_box, help="region to reveal; default the whole image")
+    rv.add_argument("--scale", type=float, default=3, help="upscale factor, default 3")
+    rv.add_argument("--out-dir", type=Path, required=True)
+    rv.add_argument("--sheet", type=Path, help="combined labelled sheet; default <out-dir>/<stem>_reveal.jpg")
+
     pr = sub.add_parser("piers", help="find bridge pier pixel columns from the brightness profile of a few rows below the bridge deck",
                         formatter_class=argparse.RawDescriptionHelpFormatter, description="""\
 Take the brightness profile along the --rows rows, subtract the sliding median baseline, and find peaks with prominence ≥ --min-prominence; the pixel columns of the peaks are the pier columns.
@@ -246,6 +329,20 @@ drop non-pier peaks (bright foreground spots, railings, trees); structure segmen
             args.sheet.parent.mkdir(parents=True, exist_ok=True)
             piers_sheet(im, r, args.sheet)
             print(args.sheet)
+        return
+
+    if args.cmd == "reveal":
+        box = args.box or (0, 0, W, H)
+        panels = reveal(im.crop(box), args.scale)
+        args.out_dir.mkdir(parents=True, exist_ok=True)
+        stem = f"{args.image.stem}_{'-'.join(map(str, box))}"
+        for name, img in panels:
+            p = args.out_dir / f"{stem}_{name}.png"
+            img.save(p)
+            print(p)
+        sheet = args.sheet or args.out_dir / f"{stem}_reveal.jpg"
+        reveal_sheet(panels, sheet)
+        print(sheet)
         return
 
     args.out_dir.mkdir(parents=True, exist_ok=True)

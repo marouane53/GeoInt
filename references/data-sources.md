@@ -6,12 +6,12 @@
 |---|--- |
 | `doctor.py` | Environment checks, browser launch, optional endpoint probes; English fixes and JSON output |
 | `exif.py` | GPS, capture time, equivalent focal length, camera heading |
-| `imgprep.py` | zoom (enlarge to read text) / edges (four edges, four corners) / variants (image-search variants) / grid (split into tiles) / `piers` (brightness profile along a given row to find pixel columns of evenly spaced structures; outputs a check image) |
+| `imgprep.py` | zoom (enlarge to read text) / edges (four edges, four corners) / variants (image-search variants) / grid (split into tiles) / `reveal` (eight brightness/contrast stretches of a dark or flat crop, to read a plate or sign lost in shadow) / `piers` (brightness profile along a given row to find pixel columns of evenly spaced structures; outputs a check image) |
 | `revimg.py` | Baidu image search + Yandex reverse image search; `--query` Chinese keyword search (Bing China, Baidu/Sogou Images) |
 | `geo.py` | Coordinate conversion, bearing and distance, camera geometry (`range --hfov a:b` distance range), `line` alignment line, `intersect` sight-line intersection, `frame` computes the frame and occlusion before excluding, `spacing` pixel columns of evenly spaced structures × known polyline → solve for camera position (optionally scored jointly with the skyline) |
 | `poi.py` | Place names, residential compound names, housing development names, shop names → candidate coordinates (360 Maps + OSM Nominatim + Baidu suggestions); lists every same-name point nationwide |
-| `sun.py` | Sun position, shadow-length ratio, `locate` location band, `when` time, `street` street orientation, `facing` heading from lit faces, `dish` satellite dish |
-| `osm.py` | Overpass: find / near (co-occurrence) / crossings (line-to-point) / route (route corridor) / intersect (crossings of two kinds of lines; bends are only labeled, `--rank-near` ranks) / street-scan (street-view geometry template) / geom (export geometry) |
+| `sun.py` | Sun position, shadow-length ratio, `locate` location band, `when` time, `street` street orientation, `facing` heading from lit faces, `dish` satellite dish, `weather` past cloud/sun/rain/snow for a point (rank the days of a range) |
+| `osm.py` | Overpass: find / addr (house numbers; several must co-occur within N m) / near (co-occurrence) / crossings (line-to-point) / route (route corridor) / intersect (crossings of two kinds of lines; bends are only labeled, `--rank-near` ranks) / street-scan (street-view geometry template) / geom (export geometry) |
 | `tiles.py` | Satellite/map tile mosaic (Google satellite / hybrid / map, Esri imagery / street, Bing aerial, Esri Wayback releases since 2014, EOX Sentinel-2 by year), `mark` plots points + overlays GeoJSON lines + field-of-view wedge, `sheet` numbered thumbnails of candidate points (town-fabric comparisons), `wayback` every archived look of a point |
 | `baidu_pano.py` | Baidu panoramas: near / info / scan / render / sheet (`--headings` to look around from one point, `--road` `--spread`) / sample (street view sampling of candidate cities) |
 | `gsv.py` | Google Street View (outside China): near / render / sheet, no key, official coverage only |
@@ -19,10 +19,11 @@
 | `sweep.py` | Index every panorama of one or more towns (MegaLoc descriptors, cached) and rank them for a photo; clusters of top hits; `view` reproduces the photo's view |
 | `pose.py` | Solve camera position from multiple points: lat/lon, height, heading, pitch, roll, field of view + error radius + per-point check; `check` scores discrete candidate camera positions; `project` projects map points back onto the photo |
 | `terrain.py` | Elevation: view (synthesized mountain view; `--overlay` overlays the skyline on the photo, `--roll`) / profile (skyline) / elev / `ridge` reads ridgeline pixel points from the photo / `scan` filters a whole region along infrastructure lines for "flat nearby + mountain present" points and clusters them / `fit` batch skyline scoring of candidate camera positions (optional infrastructure-distance constraint; outputs overlays of the top N) |
-| `evidence.py` | Evidence image: satellite image + camera-position wedge + comparison panels |
+| `evidence.py` | Evidence image: satellite image + camera-position wedge + comparison panels; `--match`: photo and reference side by side with colour-coded matching lines |
+| `opendata.py` | City open-data portals (Socrata catalogue; any CSV/GeoJSON export): find a dataset, list its fields, filter it, export candidate points |
 | `intake.py` | Metadata, edge crops, variants, OCR and Baidu/Yandex reverse image search on the original and variants in one command (recon.py runs it; `--no-rev` skips the reverse search); outputs intake.md (tiered vote count, possible place names) |
 | `ocr.py` | Reads text in the photo (Apple Vision, falls back to RapidOCR): full image + zoomed + tiles, merged; text read only after zooming is marked in `pass` |
-| `clues.py` | Lookup tables: license plate prefixes, landline area codes, country calling codes, driving side, overseas territories, admin hierarchy; tables are in `data/`, `update` re-fetches them |
+| `clues.py` | Lookup tables: license plate prefixes (China), regional plate codes with their eras (`plate-code`: IT ES FR DE AT CH GR TR GB MA), landline area codes, country calling codes, driving side, overseas territories, admin hierarchy; tables are in `data/`, `update` re-fetches them |
 | `board.py` | Candidate board: candidates, clues, evidence likelihood ratios, exclusions (require a computed file), ranking, scan cost, next step, pre-conclusion check, generates result.json fields |
 | `gazetteer.py` | Admin-division gazetteer: lists all subdivisions (with bbox), built-up area extents, scan pages |
 | `sat_scan.py` | CLIP zero-shot scoring and ranking of satellite grid cells/candidate points (sports fields, factory buildings, silos, dams…), top-N thumbnails + heatmap |
@@ -63,6 +64,26 @@ In China the same point differs by several hundred meters between WGS84 and GCJ-
 
 - The same place at different zoom levels may be imagery from different years and different tilt angles.
 - Zoom 17 is about 1.1 m/pixel, for areas; zoom 19 is about 0.28 m/pixel, for single buildings; zoom 7–9 as the base map for `sun.py locate --mosaic`.
+- One day's satellite pass (clouds, snow, smoke on a known date): `tiles.py --source gibs:<YYYY-MM-DD>` (NASA GIBS, ~250 m, zoom ≤ 9; `sky.md` §6).
+
+### Historical aerial imagery (older than Esri Wayback's 2014)
+
+For an old photo, the street, the plots and the trees as they were then. Browser tools, no script; open the
+place, step back through the years, and compare structures the way `streetlevel.md` §5 describes.
+
+| Where | Archive | Notes |
+|---|---|---|
+| Worldwide | USGS EarthExplorer (earthexplorer.usgs.gov) | Declassified CORONA spy-satellite frames 1960–1972 (metre-scale, much of Africa, the Middle East and Asia), US aerial photo single frames, Landsat since 1972 (30 m, land use only); free account to download |
+| France | IGN Remonter le temps (remonterletemps.ign.fr) | Historical aerial photos and maps compared side by side with today; Géoportail (geoportail.gouv.fr) for the layers |
+| Spain | CNIG Fototeca (fototeca.cnig.es) | Historical national flights, including the American flight of 1956–57 |
+| Switzerland | map.geo.admin.ch (swisstopo) | Historical aerial images and the "journey through time" map series |
+| United Kingdom | Britain from Above (britainfromabove.org.uk) | Aerofilms oblique aerials, mostly 1919–1953 |
+| Netherlands | Topotijdreis (topotijdreis.nl) | Historical topographic maps year by year since 1815 (maps, not photos) |
+| Belgium (Flanders) | Geopunt (geopunt.be) | Historical orthophoto series |
+| Italy | Geoportale Nazionale (gn.mase.gov.it) | National orthophoto series since the late 1980s |
+
+Elsewhere, search the national mapping agency or cadastre in the local language ("photographies aériennes
+anciennes", "fotos aéreas históricas", "historische Luftbilder", "صور جوية قديمة") and the city's open-data portal.
 
 ## Street view and ground-level imagery
 
@@ -153,6 +174,6 @@ The endpoints are all at `https://mapsv0.bdimg.com/`, need no key, and must be a
 | Source | Use |
 |---|---|
 | `sun.py` (NOAA algorithm, within ≤0.02° of NREL SPA) | Sun position; replaces SunCalc |
-| Historical daily weather (temperature, sun/rain) | Check "frozen", "sunny"; with a date, exclude overcast or rainy areas |
-| Historical weather-satellite cloud imagery | Exclude large cloud areas on that day (clearly effective only with typhoons and fronts) |
+| Historical daily weather (temperature, sun/rain) | `sun.py weather` (Open-Meteo ERA5 archive, no key): check "frozen", "sunny"; with a date, rank or test places; with a place, rank the days |
+| Historical weather-satellite cloud imagery | `tiles.py --source gibs:<date>`: that day's MODIS/VIIRS pass; match a cloud bank, snow line or clear strip seen in the photo |
 | Flightradar24, FlightAware | Flight history by registration; the paid tier can download KML/CSV tracks |

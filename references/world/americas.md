@@ -185,6 +185,38 @@ L = left-hand traffic (bold), R = right. "—" = not documented here; sample it 
 - Verify: `osm.py find --area Utah '["highway"]["name"="<street name>"]'`; `textgeo.py --text "400 S 300 W"`
 - Source: general knowledge
 
+### West Virginia fractional county routes
+- Look for: a small circle holding a stacked fraction ("24/1") on route or street signs; a single number in a circle is a trunk county route
+- Points to: West Virginia: the top number is the parent US, WV or county route, the bottom a serial
+- Strength: strong (the state's own secondary-route numbering)
+- Counterexamples: numbers are unique only within a county; spurs keep their number after the parent is renumbered; Virginia secondary routes are plain numbers from 600 up
+- Verify: `osm.py find --area "West Virginia" '["type"="route"]["network"~"^US:WV:"]["ref"="24/1"]'` (route relations carry the fraction)
+- Source: https://en.wikipedia.org/wiki/West_Virginia_State_Highway_System, https://wiki.openstreetmap.org/wiki/Tag:network%3DUS:WV:Mercer (checked 2026-10)
+
+### Utility warning sign above a pole-number tag (Wisconsin, Upper Peninsula)
+- Look for: on wooden poles about 1.5–1.8 m up, a white sign with an orange "WARNING" header and an orange diamond ("High Voltage Above. KEEP OFF!") directly above an embossed aluminium number tag; footer "We Energies | Wisconsin Public Service"
+- Points to: Wisconsin and Michigan's Upper Peninsula (the sister utility serves the former Michigan customers)
+- Strength: medium (the utilities' own sign; how many poles carry it rests on a community source)
+- Counterexamples: other Wisconsin utilities and co-ops may differ (unverified); generic orange-header WARNING signs exist nationwide, so read the footer
+- Verify: zoom on the footer (`imgprep.py zoom`); `refsheet.py regions "US:Wisconsin,US:Michigan" --side right`
+- Source: https://www.we-energies.com/olb/23/2023-02-we-cc.pdf, https://www.wisconsinpublicservice.com/joint-use-management/ju-standards/pole-info.pdf (standard P5, 2016), https://www.wisconsinpublicservice.com/services/mi-electric, https://www.plonkit.net/united-states (community) (checked 2026-10)
+
+### Coarse chip-seal surface
+- Look for: rural asphalt coated with coarse stone chips (seal coat), a grainy "salt-and-pepper" texture
+- Points to: Texas (the state seal-coats some 20,000–24,000 lane-miles a year)
+- Strength: weak (chip seal is common in many states and countries)
+- Counterexamples: New Mexico, Oklahoma, Colorado, rural Illinois (community source); Australia and New Zealand
+- Verify: combine with FM/RM road names and Texas plates
+- Source: https://www.txdot.gov/manuals/mnt/scm/general_principles/general_principles-i1000087.html, https://www.plonkit.net/united-states (community) (checked 2026-10)
+
+### Trans-Alaska Pipeline beside the road
+- Look for: one large (1.2 m) pipe on H-shaped supports, zigzagging alongside the road
+- Points to: Alaska: the Prudhoe Bay–Valdez line beside the Dalton (built as its supply road, mostly unpaved), Elliott and Richardson Highways
+- Strength: strong (unique; about 420 of its 800 miles are above ground)
+- Counterexamples: about 380 miles are buried, including most road crossings; elevated pipelines in Russian Arctic oilfields
+- Verify: `osm.py find --area Alaska '["man_made"="pipeline"]["substance"="oil"]'`, then `osm.py near` the highway
+- Source: https://en.wikipedia.org/wiki/Trans-Alaska_Pipeline_System, https://en.wikipedia.org/wiki/Dalton_Highway (checked 2026-10)
+
 ## Canada (CA)
 
 **Quick facts**
@@ -228,6 +260,30 @@ L = left-hand traffic (bold), R = right. "—" = not documented here; sample it 
 - Counterexamples: the Cherokee syllabary (NC, OK) looks Latin-like and is a different script; Inuit communities in the NWT and Labrador mostly write in Latin script
 - Verify: `textgeo.py --text "ᓄᓇᕗᑦ"`
 - Source: https://en.wikipedia.org/wiki/Stop_sign (checked 2026-10); general knowledge
+
+### Ontario speed sign with a black bottom
+- Look for: a "MAXIMUM" speed sign with a black bottom section or tab reading "BEGINS" or "km/h" in white
+- Points to: Ontario (Ontario Traffic Manual tabs Rb-84t BEGINS and Rb-7t KM/H are white on black)
+- Strength: medium (the provincial standard; its absence elsewhere rests on a community source)
+- Counterexamples: BEGINS appears only at the start of a zone; km/h is mandatory on King's Highways, optional for municipalities; British Columbia shows km/h without black (community source)
+- Verify: `refsheet.py regions "CA:Ontario,CA:British Columbia"`
+- Source: https://safetymedia.com/content/pdf/Ontario-Traffic-Manual-Book-5-Regulatory-Signs.pdf (Ontario Traffic Manual Book 5, 2021), https://www.plonkit.net/canada (community) (checked 2026-10)
+
+### Curved streetlight brackets (old City of Toronto)
+- Look for: long two-piece curved brackets reaching well over the roadway, classically with round "acorn" lamps
+- Points to: Toronto, mainly the pre-1998 old City; most lights elsewhere are plain arms with cobra heads
+- Strength: medium (a preserved heritage design; single source)
+- Counterexamples: curved arms exist in many cities; some old brackets now carry other lamps
+- Verify: web search "Toronto acorn streetlight bracket"; `refsheet.py towns "43.65,-79.38:Toronto;43.59,-79.64:Mississauga"`
+- Source: https://spacing.ca/toronto/?p=63878 (checked 2026-10)
+
+### Green sign backs
+- Look for: road signs whose reverse side is painted green instead of bare grey
+- Points to: British Columbia (also seen on Prince Edward Island)
+- Strength: weak (a single community source; not every sign)
+- Counterexamples: Prince Edward Island; reason and period unverified
+- Verify: `refsheet.py regions "CA:British Columbia,CA:Prince Edward Island"`
+- Source: https://www.plonkit.net/canada (community; no ministry document found) (checked 2026-10)
 
 ## Mexico (MX)
 

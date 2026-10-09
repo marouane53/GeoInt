@@ -18,6 +18,8 @@ Reads OCR output (ocr.py / intake.py ocr.json) and/or strings you typed from a z
   textgeo.py --ocr intake/ocr.json --out textgeo.json [--md textgeo.md] [--min-conf 0.5]
   textgeo.py --text "Rua Augusta 24" --text "+351 21 342 0000"
   textgeo.py --text "ul. Długa 5, 80-831 Gdańsk" --country PL --deep
+  textgeo.py --phone-pattern "6941 2?7788" --country GR    # a phone on a sign with one blurred digit → the valid candidates to search
+  textgeo.py --phone-pattern "0522 2?-14-60" --country MA   # a landline: the area code still gives the city
 
 Every signal says which text produced it. OCR mistakes produce wrong signals: check the zoomed crop
 before you ingest (`board.py ingest textgeo.json`). Scripts and letters narrow languages, not borders
@@ -677,8 +679,49 @@ def to_md(res: dict) -> str:
     return "\n".join(L) + "\n"
 
 
+def enumerate_phone(pattern: str, region: str | None) -> None:
+    """A phone number on a sign with one or more unreadable digits: '?' is an unknown digit. Keep only valid numbers, show where each lands, and print exact-match search queries (one blurred digit = 10 candidates; search each in quotes)."""
+    import phonenumbers
+    from phonenumbers import carrier, geocoder
+    raw = re.sub(r"[^\d?+]", "", pattern)
+    qmarks = raw.count("?")
+    if qmarks == 0:
+        print("No '?' in the pattern; nothing to enumerate. Mark each unreadable digit with '?'.")
+    if qmarks > 5:
+        sys.exit(f"{qmarks} unknown digits = {10 ** qmarks} combinations; read more of the number first (max 5 '?').")
+    pos = [i for i, ch in enumerate(raw) if ch == "?"]
+    hits = []
+    for combo in range(10 ** qmarks):
+        s = list(raw)
+        for k, p in enumerate(pos):
+            s[p] = str((combo // 10 ** (qmarks - 1 - k)) % 10)
+        cand = "".join(s)
+        try:
+            n = phonenumbers.parse(cand, region)
+        except phonenumbers.NumberParseException:
+            continue
+        if not phonenumbers.is_valid_number(n):
+            continue
+        e164 = phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)
+        natl = phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.NATIONAL)
+        rc = phonenumbers.region_code_for_number(n)
+        where = geocoder.description_for_number(n, "en")
+        typ = {v: k for k, v in vars(phonenumbers.PhoneNumberType).items() if k.isupper() and isinstance(v, int)}.get(phonenumbers.number_type(n), "?")
+        hits.append((e164, natl, rc, typ, where, carrier.name_for_number(n, "en")))
+    print(f"{qmarks} unknown digit(s) → {len(hits)} valid number(s)" + (f" in region {region}" if region else "") + ":")
+    for e164, natl, rc, typ, where, car in hits:
+        extra = " · ".join(x for x in (rc, typ.lower(), where, car) if x)
+        print(f"  {e164:16}  {natl:18}  {extra}")
+    if hits:
+        print("\nSearch each in quotes (exact match), e.g. a web search and national directories:")
+        for e164, natl, *_ in hits:
+            digits = re.sub(r"\D", "", natl)
+            print(f'  "{e164}"   "{natl}"   "{digits}"')
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--phone-pattern", help="a phone number with unreadable digits as '?', e.g. \"6941 2?7788\"; enumerate valid numbers (use with --country)")
     ap.add_argument("--ocr", help="ocr.json from ocr.py / intake.py")
     ap.add_argument("--text", action="append", help="a string you read yourself (repeatable)")
     ap.add_argument("--file", help="text file, one line per sign")
@@ -692,6 +735,13 @@ def main() -> None:
     ap.add_argument("--md", help="Markdown summary")
     ap.add_argument("--proxy", default=os.environ.get("GEO_PROXY"), help=PROXY_HELP)
     args = ap.parse_args()
+    if args.phone_pattern:
+        region = None
+        if args.country:
+            c = geodata.country(args.country)
+            region = c["iso2"] if c else args.country.upper()
+        enumerate_phone(args.phone_pattern, region)
+        return
     lines = load_lines(args)
     if not lines:
         if not (args.ocr or args.text or args.file):

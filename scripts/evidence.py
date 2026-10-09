@@ -18,6 +18,16 @@ Input is a JSON spec file:
 }
 
 Example: evidence.py spec.json --out evidence.jpg
+
+With --match, a different proof: two images side by side with colour-coded matching lines (photo vs Street View /
+reference), to show the same structure feature by feature (balconies, painted stripes, a roof line). Spec:
+{
+  "left":  {"image": "photo.jpg", "caption": "photo"},
+  "right": {"image": "sv.jpg",    "caption": "Street View, closest capture in time"},
+  "pairs": [{"color": "#ff5bbf", "label": "balcony", "a": [x,y], "b": [x,y]}, ...],   # a=left px, b=right px
+  "height": 700
+}
+Example: evidence.py match_spec.json --out match.jpg --match
 """
 from __future__ import annotations
 
@@ -109,6 +119,45 @@ def build(spec: dict, base: Path, out: Path) -> None:
 
 
 
+def build_match(spec: dict, base: Path, out: Path) -> None:
+    """Two images side by side with colour-coded correspondence lines (the photo vs a Street View / reference): prove the
+    same structure with matched features. Each pair draws a dot in its colour on each image and a connector between them,
+    so "these balconies, these painted stripes, this roof line are the same" is visible at a glance.
+
+    spec = {"left": {"image": p, "caption": c}, "right": {...},
+            "pairs": [{"color": "#ff5bbf", "label": "balcony", "a": [x,y], "b": [x,y]}, ...], "width": 1600}
+    a is a pixel in the left image, b a pixel in the right image (original pixels, before scaling)."""
+    def load(side):
+        im = Image.open(base / side["image"]).convert("RGB")
+        return im, im.size
+    lim, (lw, lh) = load(spec["left"])
+    rim, (rw, rh) = load(spec["right"])
+    H = spec.get("height", 700)
+    lsc, rsc = H / lh, H / rh
+    lim = lim.resize((int(lw * lsc), H)); rim = rim.resize((int(rw * rsc), H))
+    gap, cap = 40, 34
+    W = lim.width + gap + rim.width
+    S = Image.new("RGB", (W, H + cap), (16, 16, 16))
+    S.paste(lim, (0, cap)); S.paste(rim, (lim.width + gap, cap))
+    d = ImageDraw.Draw(S)
+    f = _font(22)
+    d.text((6, 6), spec["left"].get("caption", "photo"), font=f, fill="white")
+    d.text((lim.width + gap + 6, 6), spec["right"].get("caption", "reference"), font=f, fill="white")
+    xoff = lim.width + gap
+    r = 6
+    for p in spec.get("pairs", []):
+        col = p.get("color", "#ffdd33")
+        ax, ay = p["a"][0] * lsc, p["a"][1] * lsc + cap
+        bx, by = p["b"][0] * rsc + xoff, p["b"][1] * rsc + cap
+        d.line([(ax, ay), (bx, by)], fill=col, width=2)
+        for cx, cy in ((ax, ay), (bx, by)):
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=col, width=3)
+        if p.get("label"):
+            d.text((ax + 8, ay - 20), p["label"], font=_font(18), fill=col)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    S.save(out, quality=90)
+
+
 def _neg_coords(argv: list[str]) -> list[str]:
     """argparse takes negative coordinates like -1.45,-48.5 for option names; prefixing a space makes them plain values (float ignores the space). Needed for any case in the southern or western hemisphere."""
     return [" " + a if re.match(r"^-\d[\d.]*(,-?[\d.]+)+$", a) else a for a in argv]
@@ -118,8 +167,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("spec", type=Path)
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--match", action="store_true",
+                    help="two images + colour-coded matching lines (photo vs reference) instead of the satellite evidence image")
     args = ap.parse_args(_neg_coords(sys.argv[1:]))
-    build(json.loads(args.spec.read_text(encoding="utf-8")), args.spec.parent, args.out)
+    spec = json.loads(args.spec.read_text(encoding="utf-8"))
+    (build_match if args.match else build)(spec, args.spec.parent, args.out)
     print(args.out)
 
 

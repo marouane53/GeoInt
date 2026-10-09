@@ -108,6 +108,30 @@ Quick facts
 - Verify: `refsheet.py regions AU:Queensland,AU:New South Wales`
 - Source: general knowledge
 
+### Red No Stopping signs
+- Look for: a "NO STOPPING" kerbside sign with white lettering on a red panel with a thin white border
+- Points to: New South Wales (sign R5-400); other states use the white R5-35 sign (red ring and slash over a black S)
+- Strength: strong (a statewide sign type)
+- Counterexamples: the ACT has white No Stopping signs with text (community source); NSW No Parking signs are white, so read the wording; whether older white NSW versions survive: unverified
+- Verify: `refsheet.py regions "AU:New South Wales,AU:Victoria" --n 6 --side left`
+- Source: https://en.wikipedia.org/wiki/Road_signs_in_Australia (R5-400 "used in New South Wales", R5-35), https://commons.wikimedia.org/wiki/File:Australia_road_sign_R5-400.svg, https://www.mynrma.com.au/open-road/advice-and-how-to/road-safety/parking-signs-explained, https://www.plonkit.net/australia (community) (checked 2026-10)
+
+### Yellow sign posts
+- Look for: regulatory, warning and guide signs mounted on bright yellow posts, round or flat
+- Points to: Western Australia (Main Roads WA signs)
+- Strength: strong (yellow posts mark Main Roads WA signs)
+- Counterexamples: South Australian bus-stop posts are yellow (community source); WA council street-name and directional signs use other posts; replaced or faded posts
+- Verify: `refsheet.py regions "AU:Western Australia,AU:South Australia" --n 6 --side left`
+- Source: https://www.mundaring.wa.gov.au/plan-build/streets-verges-and-roads/road-maintenance-lighting-and-signs.aspx ("all signs with yellow posts are MRWA responsibility"), https://www.plonkit.net/australia (community) (checked 2026-10)
+
+### Black pole-number strips
+- Look for: a timber pole with a black-painted strip about 2.7 m up carrying a vertical or diagonal column of silver numerals, sometimes with a B or W prefix
+- Points to: South East Queensland (Brisbane; the community source adds the Gold Coast and Sunshine Coast), not the whole state
+- Strength: medium (an official specification exists for Brisbane City Council poles; the wider area rests on a community source)
+- Counterexamples: Ergon poles elsewhere in Queensland carry a number about 2.4 m up, appearance unverified; NZ poles carry black number stickers (community source)
+- Verify: `refsheet.py towns "-27.47,153.03:Brisbane;-28.00,153.43:Gold Coast;-19.26,146.82:Townsville" --side left --pitch 5`
+- Source: https://docs.brisbane.qld.gov.au/standard-drawings/Minor-Amendment-N/11000/230602_bsd-11006_a_pol-numbering_timber-poles_details_sheet-2-o-2.pdf (BSD-11006, 2023: aluminium numerals on black paint), https://southburnett.com.au/news2/2014/01/23/ergon-reminder-to-check-poles/, https://www.plonkit.net/australia (community) (checked 2026-10)
+
 ### Regions inside Australia
 - New South Wales: black on yellow plates, 02, 2xxx; M/A/B routes since 2013; sandstone around Sydney, red-brick houses with terracotta roofs; inland wheat-sheep belt; red outback in the far west.
 - ACT: Canberra plates, 02, 26xx and 29xx; planned suburbs, many roundabouts, native trees in verges.
@@ -161,6 +185,22 @@ Quick facts
 - Counterexamples: missing reflectors; older posts
 - Verify: `refsheet.py countries NZ,AU --n 6`
 - Source: nzta.govt.nz Traffic Control Devices Manual part 5 (delineation) checked 2026-10
+
+### Red band on edge marker posts
+- Look for: a white flexible edge post with a red band across its full width near the top: the face seen on the left side of the road shows red around a white reflector, the back seen on the right shows a solid red band with a yellow reflector
+- Points to: New Zealand rather than Australia, where the red reflector does not span the post
+- Strength: strong (one national post design)
+- Counterexamples: posts with a green stripe in southern Canterbury and a black stripe around Wellington (community source); faded or missing bands
+- Verify: `refsheet.py countries NZ,AU --n 6 --side left`
+- Source: https://www.drivingtests.co.nz/resources/marking-the-edge-of-the-road-with-markers-and-cats-eyes/, https://www.plonkit.net/new-zealand (community) (checked 2026-10)
+
+### Marlborough vineyards
+- Look for: a flat valley floor covered in trellised vine rows between ranges on both sides
+- Points to: Marlborough: the Wairau Valley around Blenheim and the Awatere Valley near Seddon
+- Strength: medium (about 70 % of New Zealand's vineyard area in 2020, three quarters of its wine output)
+- Counterexamples: Hawke's Bay, Wairarapa, Central Otago, Nelson, North Canterbury and Gisborne also have vineyards
+- Verify: `osm.py find '["landuse"="vineyard"]' --bbox -41.65,173.55,-41.40,174.10`; `refsheet.py regions "NZ:Marlborough,NZ:Hawke's Bay" --rural`
+- Source: https://en.wikipedia.org/wiki/Marlborough_wine_region (checked 2026-10)
 
 ### Regions inside New Zealand
 - Area code 03 means the South Island; 04 Wellington; 06 lower North Island east and west; 07 Waikato and Bay of Plenty; 09 Auckland and Northland.

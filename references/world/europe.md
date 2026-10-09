@@ -242,6 +242,14 @@ Plate formats, scripts, driving side and phone/postal formats are fixed by law (
 - Verify: `refsheet.py regions "ES:Galicia,ES:Asturias,PT:Viana do Castelo"`
 - Source: general knowledge
 
+### Green-topped edge posts (Extremadura)
+- Look for: a standard Spanish edge post (white, black band, amber reflector) with its top painted green
+- Points to: Extremadura (Cáceres and Badajoz provinces)
+- Strength: medium (one community source, which says the variant is found only in this region)
+- Counterexamples: common there but not on every post; yellow/amber guardrail reflectors are found all over Spain (and in Andorra, Belgium and much of Latin America), so they confirm Spain, not Extremadura; all-yellow posts unverified
+- Verify: `refsheet.py regions "ES:Extremadura,ES:Andalusia" --n 6 --side right`; EX- road numbers
+- Source: https://www.plonkit.net/spain (community; regional government pages say nothing about post colour), https://www.geometas.com/metas/countries/spain (guardrail reflectors) (checked 2026-10)
+
 ### Regions inside Spain
 - Pre-2000 plate province codes: M Madrid, B Barcelona, V Valencia, SE Seville, MA Málaga, BI Bizkaia, Z Zaragoza, C A Coruña, PM/IB Balearics, GC Las Palmas, TF Tenerife, CE Ceuta, ML Melilla
 - Regional road prefixes: CV Valencian Community, CL Castile and León, CM Castile–La Mancha, EX Extremadura, AS Asturias, CA Cantabria, RM Murcia, LR La Rioja, NA Navarre, M Madrid, C Catalonia, GC/TF Canaries; Galicia AC/LU/OU/PO; Basque BI/GI (GI- is also Girona's provincial prefix); Andalusia and Aragon use A- with 3–4 digits (not the state A- motorways)
@@ -420,6 +428,14 @@ Plate formats, scripts, driving side and phone/postal formats are fixed by law (
 - Green motorway signs. Croatian č ć đ š ž, ijekavian ("rijeka", "mlijeko"); Italian bilingual in Istria. Euro since 2023
 - Karst coast with stone walls and terracotta roofs; flat Slavonian farmland inland. Phone +385 (01 Zagreb, 021 Split, 051 Rijeka; 09x mobile); postcodes 5 digits (10000 Zagreb, 21000 Split); TLD .hr
 
+### Blue fire hydrants
+- Look for: narrow pillar hydrants painted blue, with two outlets angled diagonally on either side; newer ones have a smaller top, still blue
+- Points to: Croatia
+- Strength: medium (two community sources agree; hydrant appearance is left to local water utilities)
+- Counterexamples: similar hydrants in neighbouring countries, most often Hungary; red hydrants exist too
+- Verify: `refsheet.py countries HR,HU,SI --n 6 --side right --pitch -10`
+- Source: https://www.plonkit.net/croatia, https://www.geometas.com/metas/countries/croatia (community) (checked 2026-10)
+
 ## Bosnia and Herzegovina (BA)
 - Plates white, blue BIH band (no stars), `A12-B-345` using only A E J K M O T (same in Latin and Cyrillic), no regional code
 - Cyrillic-dominant signs → Republika Srpska; Latin → the Federation; ijekavian. Mosques, Orthodox and Catholic churches; steep roofs in mountain valleys
@@ -501,6 +517,14 @@ Plate formats, scripts, driving side and phone/postal formats are fixed by law (
 - Verify: `refsheet.py regions "RU:Primorye,RU:Moscow Oblast"`
 - Source: general knowledge
 
+### Red-and-white striped street poles (Ulyanovsk)
+- Look for: utility or lighting poles along town streets painted in alternating red and white horizontal bands
+- Points to: Ulyanovsk city; less often the Nizhny Novgorod area; occasionally elsewhere
+- Strength: medium (one community source; pair it with another clue such as the plate's region code)
+- Counterexamples: red-and-white striped poles are also typical of Saransk and other Mordovian towns; black-and-white pole marking is common along highways across European Russia and does not point to one region
+- Verify: `refsheet.py regions "RU:Ulyanovsk,RU:Mordoviya Republic,RU:Nizhny Novgorod Oblast" --n 6`
+- Source: https://www.plonkit.net/russia (community; no news or official source found) (checked 2026-10)
+
 ### Regions inside Russia
 - Muslim republics: mosques, bilingual Tatar or Bashkir signs (Volga), North Caucasus mountain villages. Kaliningrad (39/91): German-era brick, cobbles, linden alleys. Arctic: permafrost houses on piles. South (Kuban, Volga): steppe, sunflowers; centre and north: birch-spruce-pine taiga, wooden villages
 - Asian part: Urals (Yekaterinburg 66), Siberia (Novosibirsk 54, Krasnoyarsk 24, Irkutsk 38, Buryatia 03 with Buddhist datsans), Far East (Vladivostok 25, Khabarovsk 27, Kamchatka 41, Sakhalin 65); postcodes 6xxxxx
@@ -518,6 +542,14 @@ Plate formats, scripts, driving side and phone/postal formats are fixed by law (
 - Counterexamples: 34 and 06 cars everywhere; rental fleets in tourist areas
 - Verify: read a postcode with `textgeo.py --text "<postcode>"`; `refsheet.py regions TR:Rize,TR:Antalya`
 - Source: en.wikipedia.org/wiki/Vehicle_registration_plates_of_Europe checked 2026-10
+
+### Rooftop water-tank shapes
+- Look for: the tank type on most flat roofs: vertical cylinders; a horizontal tank on top of a vertical one (T shape); square tanks with cut corners; white spheres
+- Points to: vertical → most of Turkey except the south and west coasts; T shape → the south coast and inland to Elazığ; cut-corner squares → İskenderun to Şanlıurfa; white spheres → the south-east, mainly Mardin province toward the Syrian border
+- Strength: weak alone; medium when most visible roofs agree (one community source for the shapes)
+- Counterexamples: types mix in cities; the tanks make up for low mains pressure and some old towns are removing them (Mardin, 2021); rooftop tanks are also common in Greece, Cyprus and the Levant (shapes there unverified)
+- Verify: `refsheet.py regions "TR:Mardin,TR:Şanlıurfa,TR:Mersin,TR:Elazığ" --n 6`
+- Source: https://www.plonkit.net/turkey (community), https://cnnturk.com/turkiye/mardine-gelen-turistin-su-deposu-ve-anten-sikayeti-1709681 (checked 2026-10)
 
 ### Regions inside Turkey
 - Black Sea: very green, tea terraces (Rize, Trabzon), hazelnut orchards (Ordu, Giresun), rain. Marmara: industrial, dense. Aegean: olives, figs, whitewash (Muğla). Mediterranean: greenhouses, citrus, bananas near Alanya, pine on Taurus slopes. Central Anatolia: steppe, wheat, tuff landscapes (Nevşehir). East: high plateau, long winters (Erzurum, Kars, Van). South-east: arid, limestone and basalt towns, pistachios (Gaziantep, Şanlıurfa, Mardin). Thrace: sunflowers (Edirne, Tekirdağ)

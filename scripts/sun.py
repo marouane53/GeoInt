@@ -16,6 +16,7 @@ Azimuths are always compass bearings: 0=north, clockwise. Times can carry a time
   street  known place and date + angle between shadow and street → street orientation candidates (morning and afternoon listed separately)
   facing  which walls are lit and which are shaded → camera heading range (use when there is no measurable shadow)
   compass sun in the frame → camera heading, and the true bearing of any object in the frame (with no time given, split into sunrise and sunset groups)
+  weather past weather for a point on a day / over a date range (cloud cover, sunshine, rain, snow): rank days to pick which one matches a sunny or snowy photo
 
 Examples:
   sun.py pos --at 39.9042,116.4074 --time 2023-08-15T16:20 --tz Asia/Shanghai
@@ -30,6 +31,8 @@ Examples:
   sun.py compass --at <lat,lon> --time 07:40 --dates 2024-09-01:2024-10-15 --tz <IANA time zone> --sun-x 1200 --width 4000 --hfov 60:70 --x 2900
   sun.py compass --at <lat,lon> --tz <IANA time zone> --sun-x 2600 --width 4032 --x 1500        # no time, no date: morning and evening groups over the whole year
   sun.py street --at 49.25,-123.10 --date 2025-04-01 --tz America/Vancouver --ratio 1.5 --tol 4 --shadow-rel 90
+  sun.py weather --at 38.7223,-9.1393 --date 2024-07-16                      # hourly cloud/sun that day (was it sunny?)
+  sun.py weather --at 38.7223,-9.1393 --dates 2024-07-01:2024-07-31          # rank the month's days, sunniest first
 """
 from __future__ import annotations
 
@@ -492,6 +495,88 @@ def cmd_compass(args) -> None:
     print("When a range crosses north (e.g. 350°–10°), read it clockwise. If the field of view is uncertain, widen --hfov; when the sunrise and sunset groups can't be told apart, you must build top-down templates for both headings.")
 
 
+_WMO = {0: "clear", 1: "mostly clear", 2: "partly cloudy", 3: "overcast", 45: "fog", 48: "rime fog",
+        51: "light drizzle", 53: "drizzle", 55: "dense drizzle", 61: "light rain", 63: "rain", 65: "heavy rain",
+        71: "light snow", 73: "snow", 75: "heavy snow", 77: "snow grains", 80: "light showers", 81: "showers",
+        82: "violent showers", 85: "snow showers", 86: "heavy snow showers", 95: "thunderstorm",
+        96: "thunderstorm + hail", 99: "thunderstorm + heavy hail"}
+
+
+def cmd_weather(args) -> None:
+    """Past weather for a point on a day or over a date range (ERA5 reanalysis via Open-Meteo, ~9 km, hourly, 1940→~5 days ago).
+
+    Rank the days of a range by how sunny or overcast they were to pick which day a photo was taken,
+    or read the cloud cover and precipitation at the capture hour. Pair with a GIBS daily image (tiles.py --source gibs:DATE)
+    to match the actual cloud pattern. The image still has the final say; weather only ranks candidate days.
+    """
+    from urllib.parse import urlencode
+    import _net
+
+    lat, lon = args.at
+    if args.dates:
+        start, end = args.dates.split(":")
+    else:
+        start = end = args.date
+    hourly = ["cloud_cover", "cloud_cover_low", "sunshine_duration", "precipitation", "snowfall", "weather_code", "temperature_2m"]
+    q = urlencode({"latitude": f"{lat:.4f}", "longitude": f"{lon:.4f}", "start_date": start, "end_date": end,
+                   "hourly": ",".join(hourly), "timezone": args.tz or "auto"})
+    url = f"https://archive-api.open-meteo.com/v1/archive?{q}"
+    try:
+        data = json.loads(_net.fetch_bytes(url, args.proxy, timeout=30))
+    except Exception as e:                                                      # noqa: BLE001
+        raise SystemExit(f"Open-Meteo request failed ({e}). The archive lags ~5 days; for the last few days use the "
+                         "forecast API's past_days, and note recent dates may be missing.")
+    if "hourly" not in data or not data["hourly"].get("time"):
+        raise SystemExit(f"No data for {start}..{end} at {lat},{lon} (archive lags ~5 days; recent dates may be missing).")
+    H = data["hourly"]
+    tz = data.get("timezone", "UTC")
+    rows = list(zip(H["time"], H["cloud_cover"], H["cloud_cover_low"], H["sunshine_duration"],
+                    H["precipitation"], H["snowfall"], H["weather_code"], H["temperature_2m"]))
+    by_day: dict[str, list] = {}
+    for r in rows:
+        by_day.setdefault(r[0][:10], []).append(r)
+
+    def num(v):
+        return v if isinstance(v, (int, float)) else None
+
+    if not args.dates:                                                          # one day: hourly table
+        lo, hi = (int(x) for x in args.hours.split(":")) if args.hours else (6, 20)
+        print(f"{args.date} at {lat},{lon}  (times {tz}; ERA5 reanalysis)\n"
+              f"{'hour':5} {'cloud%':>6} {'low%':>5} {'sun min':>7} {'rain mm':>7} {'snow cm':>7} {'°C':>5}  code")
+        day = 0.0
+        for t, cc, ccl, sun, rain, snow, wc, temp in by_day.get(args.date, []):
+            hh = int(t[11:13])
+            if not lo <= hh <= hi:
+                continue
+            s = num(sun)
+            day += (s or 0) / 60
+            print(f"{t[11:16]:5} {num(cc) if num(cc) is not None else '-':>6} {num(ccl) if num(ccl) is not None else '-':>5} "
+                  f"{(s or 0)/60:7.0f} {num(rain) if num(rain) is not None else '-':>7} "
+                  f"{(num(snow) or 0):7.1f} {num(temp) if num(temp) is not None else '-':>5}  {_WMO.get(wc, wc)}")
+        ccs = [num(r[1]) for r in by_day.get(args.date, []) if lo <= int(r[0][11:13]) <= hi and num(r[1]) is not None]
+        print(f"\n{lo}:00–{hi}:00 mean cloud {sum(ccs)/len(ccs):.0f}%  total sunshine {day:.0f} min" if ccs else "\n(no data in window)")
+        return
+
+    summ = []                                                                   # range: rank days by a daytime window
+    lo, hi = (int(x) for x in args.hours.split(":")) if args.hours else (9, 16)
+    for d, rs in sorted(by_day.items()):
+        win = [r for r in rs if lo <= int(r[0][11:13]) <= hi]
+        ccs = [num(r[1]) for r in win if num(r[1]) is not None]
+        sun = sum((num(r[3]) or 0) for r in win) / 60
+        rain = sum((num(r[4]) or 0) for r in win)
+        snow = sum((num(r[5]) or 0) for r in win)
+        codes = [r[6] for r in win if r[6] is not None]
+        summ.append((d, (sum(ccs) / len(ccs)) if ccs else None, sun, rain, snow,
+                     max(set(codes), key=codes.count) if codes else None))
+    summ.sort(key=lambda r: (r[1] if r[1] is not None else 999))                # sunniest (lowest cloud) first
+    print(f"{start}..{end} at {lat},{lon}  ({lo}:00–{hi}:00 {tz}; sunniest first; ERA5)\n"
+          f"{'date':12} {'cloud%':>6} {'sun min':>7} {'rain mm':>7} {'snow cm':>7}  code")
+    for d, cc, sun, rain, snow, wc in summ:
+        dow = date.fromisoformat(d).strftime("%a")
+        ccs = f"{cc:.0f}" if cc is not None else "-"
+        print(f"{d} {dow} {ccs:>5}  {sun:7.0f} {rain:7.1f} {snow:7.1f}  {_WMO.get(wc, wc)}")
+
+
 def _neg_coords(argv: list[str]) -> list[str]:
     """argparse treats negative coordinates like -1.45,-48.5 as option names; a leading space makes them plain values (float ignores the space). Every southern- or western-hemisphere case needs this."""
     return [" " + a if re.match(r"^-\d[\d.]*(,-?[\d.]+)+$", a) else a for a in argv]
@@ -577,9 +662,20 @@ def main() -> None:
     cp.add_argument("--hfov", default="55:75", help="horizontal field of view range °; phone main camera about 65–75 in landscape, about 50–60 in portrait, narrower for crops / zoom")
     cp.add_argument("--x", action="append", help="pixel columns of objects to compute bearings for, comma-separated or repeated")
 
+    we = sub.add_parser("weather", help="past weather for a point: hourly on a day, or rank the days of a range (sunny/overcast/snow)")
+    we.add_argument("--at", type=_pair, required=True, help="lat,lon")
+    wg = we.add_mutually_exclusive_group(required=True)
+    wg.add_argument("--date", help="single day 2024-07-16")
+    wg.add_argument("--dates", help="date range 2024-07-01:2024-07-31")
+    we.add_argument("--hours", help="local hour window lo:hi (default 6:20 for a day, 9:16 for a range)")
+    we.add_argument("--tz", help="IANA time zone; default auto (resolved from the point)")
+    we.add_argument("--proxy", default=argparse.SUPPRESS, help="proxy URL or 'direct' (default: $GEO_PROXY)")
+
     args = ap.parse_args(_neg_coords(sys.argv[1:]))
+    if not hasattr(args, "proxy"):
+        args.proxy = None
     {"pos": cmd_pos, "ratio": cmd_ratio, "locate": cmd_locate, "when": cmd_when, "dish": cmd_dish,
-     "street": cmd_street, "facing": cmd_facing, "compass": cmd_compass}[args.cmd](args)
+     "street": cmd_street, "facing": cmd_facing, "compass": cmd_compass, "weather": cmd_weather}[args.cmd](args)
 
 
 if __name__ == "__main__":

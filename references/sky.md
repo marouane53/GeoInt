@@ -123,8 +123,32 @@ uv run scripts/sun.py dish --lat 31.2 --sat 92.2 --azimuth 213       # dish face
 - Large dishes (1.5 m and up) at institutions and cable TV stations may point at ChinaSat 6B (115.5°) or an AsiaSat satellite; you can't apply the Hu Hu Tong table to them.
 - Common in Europe: Astra 1 (19.2°E, Germany/Austria), Hot Bird (13°E, Italy), Astra 2 (28.2°E, UK). There's a list in `sun.py`.
 
+## 6. Weather on the day: which day, and does the place fit?
+
+The sky in the photo is itself a record: hard shadows and blue sky, flat overcast, fresh snow, wet streets. With
+a date it tests a candidate place; with a place it tells you which day.
+
+```bash
+uv run scripts/sun.py weather --at 38.72,-9.14 --date 2024-07-16                 # hourly cloud / sun / rain / snow that day
+uv run scripts/sun.py weather --at 38.72,-9.14 --dates 2024-07-01:2024-07-31     # rank the month's days, sunniest first
+uv run scripts/tiles.py fetch 38.72,-9.14 --zoom 7 --radius 2 --source gibs:2024-07-16 --out sat_0716.jpg  # that day's satellite pass
+```
+
+- **Which day**: a photo with sharp shadows and a clear sky, a date range (EXIF day uncertain, a trip, a known
+  week) → rank the days at the place; keep the clear ones. Same for snow (snowfall, cold) and rain (wet
+  ground, umbrellas). A narrow, confident window then feeds `sun.py when/locate` and Street View capture dates.
+- **Which place**: a known date and an overcast photo rule out candidates that were clear all day, and the
+  reverse. ERA5 is ~9 km and hourly: fine for "sunny or not", too coarse for a passing shower.
+- **Cloud pattern**: `gibs:<date>` is one daytime satellite pass (MODIS Terra ~10:30 local; also
+  `:VIIRS_SNPP_CorrectedReflectance_TrueColor` ~13:30). A cloud bank, a clear strip or a snow line visible in
+  the photo's sky or ground can be matched to it to place the camera inside a region. Zoom ≤ 9.
+- The archive lags about five days and sky conditions change within the hour: weather ranks days and places, it
+  never excludes on its own unless the photo's sky is unambiguous.
+
 ## Common mistakes
 
+- Using weather to exclude a place on a vague sky ("looks a bit hazy"); only a clear-cut sky (hard shadows vs
+  flat overcast, fresh snow) carries weight, and only for the hour it was taken.
 - Wrong time zone or DST: use an IANA name for `--tz` (`Europe/Berlin` handles DST automatically); don't hand-write +1/+2.
 - Taking posting time as capture time.
 - Measuring shadow length on slopes or steps; taking a slanted shadow (from a non-vertical object) as the shadow of a vertical object.

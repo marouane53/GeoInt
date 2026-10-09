@@ -417,6 +417,14 @@ Other paint: Kenya white edges with solid yellow no-overtaking centre lines (ken
 - Verify: `refsheet.py countries BW,NA,ZA --n 6`
 - Source: en.wikipedia.org/wiki/Vehicle_registration_plates_of_Botswana checked 2026-10
 
+### Fan palms near the Makgadikgadi (Botswana)
+- Look for: clumps or "islands" of fan palms 5–7 m tall on flat sand or grassland, the trunk often bulging below the crown
+- Points to: north-central Botswana: around Nata on the edge of the Makgadikgadi pans, and the Boteti. The palm is Hyphaene petersiana (real fan palm, makalani; Setswana "mokola")
+- Strength: medium inside Botswana; weak for choosing the country
+- Counterexamples: the same palm grows from Tanzania and the DRC to Namibia, Zambia, Zimbabwe, Mozambique and Limpopo; inside Botswana it is not limited to Nata
+- Verify: `refsheet.py towns "-20.21,26.18:Nata;-24.65,25.91:Gaborone" --n 6`
+- Source: https://en.wikipedia.org/wiki/Hyphaene_petersiana, https://search.museums.ualberta.ca/g/3-501268, https://www.rhinoafrica.com/en/accommodation/nata-lodge/25002, https://desire-his.wur.nl/wimba/CG%20SSD%20Boteti%2C%20Botswana/page_09.html (checked 2026-10)
+
 ## Namibia (NA)
 
 **Quick facts**

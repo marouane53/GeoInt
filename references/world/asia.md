@@ -440,6 +440,22 @@ Quick facts
 - Verify: `refsheet.py regions "ID:West Sumatra,ID:Bali,ID:South Sulawesi"`
 - Source: general knowledge
 
+### Black-white-yellow bollards (Central Sulawesi)
+- Look for: roadside posts painted black at the bottom, white in the middle and yellow at the top
+- Points to: Central Sulawesi
+- Strength: medium (one community source)
+- Counterexamples: two-colour posts (black-and-white, yellow-and-black) are used throughout Indonesia, so check for all three bands in this order
+- Verify: `refsheet.py regions "ID:Central Sulawesi,ID:South Sulawesi,ID:North Sulawesi" --n 6 --side left`; DN plates
+- Source: https://www.plonkit.net/indonesia (community; no road-authority source found) (checked 2026-10)
+
+### Green-painted bridge sides (South and Central Kalimantan)
+- Look for: green paint on the railings or parapets of road bridges
+- Points to: South and Central Kalimantan
+- Strength: weak (one community source; two provinces)
+- Counterexamples: Sleman regency (Yogyakarta) also paints its bridges green and yellow; green decks or road surfaces unverified; repainting changes colours
+- Verify: `refsheet.py regions "ID:Central Kalimantan,ID:South Kalimantan,ID:East Kalimantan" --n 6`; KH and DA plates
+- Source: https://www.plonkit.net/indonesia (community), https://www.detik.com/jateng/jogja/d-6383808/wajah-baru-jembatan-merah-gejayan-yang-kini-berwarna-hijau (checked 2026-10)
+
 ### Regions inside Indonesia
 - Postcode first digit: 1 Greater Jakarta (with Tangerang, Bogor, Bekasi); 2 northern Sumatra (Aceh, North and West Sumatra, Riau); 3 southern Sumatra (South Sumatra, Bangka, Lampung, Jambi, Bengkulu); 4 rest of West Java and Banten; 5 Central Java and Yogyakarta; 6 East Java; 7 Kalimantan; 8 Bali and Nusa Tenggara; 9 Sulawesi, Maluku, Papua.
 - Java: densest; rice terraces under volcanoes; teak in east-central Java; Javanese script signs in Yogyakarta and Solo.

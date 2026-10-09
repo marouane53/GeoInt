@@ -59,7 +59,8 @@ Run it for each candidate town (or the gut-call point) before saying "no street 
    - **Labels**: `--source google-hybrid` (satellite + street names) or `google-map` / `esri-street`.
    - **Then and now**: `tiles.py wayback <lat,lon> --out wb.jpg` shows every archived look of a place
      since 2014 (Esri Wayback); `--source s2:<year>` gives yearly Sentinel-2 mosaics (10 m) from 2018; older
-     than that, search national aerial-photo archives (many countries have them online).
+     than that, national aerial-photo archives and declassified 1960s satellite frames (`data-sources.md`,
+     "Historical aerial imagery"). City tree censuses of past years (`datasets.md`) show which trees stood then.
    - `osm.py` for geometry questions (street orientation from the sun, junction angles, widths).
 5. **Still nothing**: news and blog photos, Wikimedia Commons geosearch, real-estate and school photos,
    old postcards (`delcampe`, Flickr groups) — see `verify.md` §4.
@@ -155,6 +156,11 @@ fronts, signs, shutters, young trees (grow or vanish), new buildings on empty lo
   other points.
 - Do not use local-feature inlier counts (`match.py --refine sift`) to accept or reject across decades;
   they are noise there (measured above). Use them only for same-era imagery.
+- **Black-and-white photos: don't colourise for the sweep.** Measured on 150 queries in one town (the true
+  panorama excluded, a neighbour within 20 m counted as correct): colour queries R@1 0.69 / R@50 0.96;
+  the same queries in grayscale 0.60 / 0.93; colourised with a standard model 0.55 / 0.93 — no better than
+  grayscale. Rank the grayscale photo as it is and read deeper into the list (top 50 and the clusters). A
+  colourised copy's colours are the model's guess (it greens dry ground and greys ochre walls): never evidence.
 - A sweep winner that also heads a cluster, whose reproduced view matches ≥3 invariant structures, with no
   contradiction, is a street-level answer (medium; high with a second independent constraint such as the
   sun, a sight line, or the owner's confirmation). Write the changes you accepted in the report.

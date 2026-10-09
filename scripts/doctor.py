@@ -47,6 +47,9 @@ SERVICES = {
     "Panoramax (OSM France instance)": "https://panoramax.openstreetmap.fr/api/",
     "Esri Wayback (historical imagery)": "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json",
     "EOX Sentinel-2 cloudless": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/0/0/0.jpg",
+    "NASA GIBS daily imagery": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-07-16/GoogleMapsCompatible_Level9/0/0/0.jpg",
+    "Open-Meteo weather archive": "https://archive-api.open-meteo.com/v1/archive?latitude=0&longitude=0&start_date=2024-07-16&end_date=2024-07-16&hourly=cloud_cover",
+    "Socrata open-data catalogue": "https://api.us.socrata.com/api/catalog/v1?q=trees&limit=1",
 }
 MODEL_CACHES = {
     "StreetCLIP (prior.py)": "models--geolocal--StreetCLIP",

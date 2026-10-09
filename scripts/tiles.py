@@ -50,7 +50,9 @@ SOURCES = {
     "bing": "https://ecn.t{s}.tiles.virtualearth.net/tiles/a{q}.jpeg?g=14536",       # Bing aerial (quadkey)
 }
 SOURCE_HELP = ("google | google-hybrid | google-map | esri | esri-street | bing | wayback:<release id or YYYY[-MM]> "
-               "(Esri World Imagery Wayback, archived releases since 2014) | s2:<year> (EOX Sentinel-2 cloudless, 10 m, 2018+)")
+               "(Esri World Imagery Wayback, archived releases since 2014) | s2:<year> (EOX Sentinel-2 cloudless, 10 m, 2018+) | "
+               "gibs:<YYYY-MM-DD>[:<layer>] (NASA GIBS near-real-time daily imagery, one pass that day; match clouds/snow/smoke; "
+               "zoom ≤9, default layer MODIS_Terra_CorrectedReflectance_TrueColor, also VIIRS_SNPP_/VIIRS_NOAA20_/MODIS_Aqua_CorrectedReflectance_TrueColor)")
 WAYBACK_CONFIG = "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json"
 
 
@@ -95,6 +97,12 @@ def tile_url(source: str, x: int, y: int, z: int, proxy: str | None = None) -> s
     if source.startswith("s2:"):
         year = source.split(":", 1)[1]
         return f"https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-{year}_3857/default/g/{z}/{y}/{x}.jpg"
+    if source.startswith("gibs:"):
+        parts = source.split(":", 2)[1:]            # gibs:<date>[:<layer>]
+        date = parts[0]
+        layer = parts[1] if len(parts) > 1 and parts[1] else "MODIS_Terra_CorrectedReflectance_TrueColor"
+        return (f"https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{date}/"
+                f"GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg")
     if source == "bing":
         return SOURCES["bing"].format(s=(x + y) % 4, q=_quadkey(x, y, z))
     if source not in SOURCES:

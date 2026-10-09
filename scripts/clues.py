@@ -7,6 +7,7 @@
 
   lookup plate 渝G              first two plate characters → province + prefecture-level city / district (county) (issuing-authority code, source Wikipedia; letter splits inside municipalities come from a common-knowledge table, marked unverified)
   lookup plate-prefix 渝        province abbreviation → province (渝 = Chongqing)
+  lookup plate-code PA --country IT   regional plate code outside China (IT ES FR DE AT CH GR TR GB MA) → place + era; no --country searches all
   lookup area-code 0817         landline area code → province + city (also accepts "0817-1234567", "(0817) 123")
   lookup calling-code +594      international calling code → country/region
   lookup driving-side left      countries that drive on the left; `driving-side --country 日本` (Japan) → left
@@ -48,6 +49,7 @@ SOURCES = {
     "driving_side": ["https://en.wikipedia.org/wiki/Left-_and_right-hand_traffic"],
     "territories": ["https://en.wikipedia.org/wiki/List_of_dependent_territories"],
     "cn_admin": ["https://raw.githubusercontent.com/modood/Administrative-divisions-of-China/master/dist/pca-code.json"],
+    "plate_codes": ["https://en.wikipedia.org/wiki/Vehicle_registration_plates_of_Europe (one page per country, see PLATE_PAGES)"],
 }
 LOCAL_NAMES = {"cn_plates": "plates_zh.html", "cn_area_codes": "areacodes2_zh.html", "calling_codes": "calling_en.html",
                "driving_side": "driving_en.html", "territories": "dependent_en.html", "cn_admin": "pca-code.json"}
@@ -320,6 +322,174 @@ def parse_cn_admin(raw: str) -> dict:
     return {"items": items}
 
 
+# ---------------------------------------------------------------- regional plate codes (outside China)
+# Each page is fetched through the MediaWiki parse API and one or more of its tables (or lists) become
+# {code: [{"place", "region", "era", "note"}]}. Eras matter as much as places: many countries dropped
+# regional codes (Italy 1994, Spain 2000, France 2009), so a regional code also dates the photo.
+PLATE_PAGES = {
+    "IT": ("en", "Vehicle registration plates of Italy"),
+    "ES": ("en", "Vehicle registration plates of Spain"),
+    "FR": ("en", "Departments of France"),
+    "DE": ("de", "Liste der Kfz-Kennzeichen in Deutschland"),
+    "AT": ("en", "Vehicle registration plates of Austria"),
+    "CH": ("en", "Vehicle registration plates of Switzerland"),
+    "GR": ("en", "Vehicle registration plates of Greece"),
+    "TR": ("en", "Vehicle registration plates of Turkey"),
+    "GB": ("en", "Vehicle registration plates of the United Kingdom"),
+    "MA": ("fr", "Plaque d'immatriculation marocaine"),
+}
+GREEK_LOOKALIKE = str.maketrans("ABEZHIKMNOPTYX", "ΑΒΕΖΗΙΚΜΝΟΡΤΥΧ")      # Greek plates use only letters that look Latin
+
+
+def _wiki_url(lang: str, title: str) -> str:
+    return f"https://{lang}.wikipedia.org/wiki/{title.replace(' ', '_')}"
+
+
+def _wiki_html(lang: str, title: str, proxy: str | None) -> str:
+    from urllib.parse import quote
+    raw = _fetch(f"https://{lang}.wikipedia.org/w/api.php?action=parse&format=json&prop=text&redirects=1&page={quote(title)}", proxy)
+    return json.loads(raw)["parse"]["text"]["*"]
+
+
+def _find_table(tables: list, *head: str):
+    for t in tables:
+        h = [x.strip().lower() for x in t[0]]
+        if len(h) >= len(head) and all(h[i].startswith(head[i].lower()) for i in range(len(head))):
+            return t
+    return None
+
+
+def _add(codes: dict, code: str, place: str, era: str, region: str = "", note: str = "") -> None:
+    code, place = code.strip().upper(), re.sub(r"\[\d+\]", "", place).strip()
+    if code and place and code.lower() not in ("code", "abk."):
+        codes.setdefault(code, []).append({"place": place, "region": region.strip(), "era": era, "note": note.strip()})
+
+
+def _pairs(t, codes: dict, era: str) -> None:
+    for r in t[1:]:
+        for i in range(0, len(r) - 1, 2):
+            _add(codes, r[i], r[i + 1], era)
+
+
+def parse_plate_page(cc: str, html: str) -> dict:
+    """One country's page → {"codes": {...}, "dating": {...}, "note": "..."}."""
+    tabs = _tables(html)
+    codes: dict = {}
+    dating: dict = {}
+    note = ""
+    if cc == "IT":
+        note = "Province code: on plates 1927–1994 (Rome spelled out ROMA); optional on the right blue band since 1999."
+        t = _find_table(tabs, "code", "province", "code")
+        if t:
+            _pairs(t, codes, "1927–1994 plates; optional right band since 1999")
+        t = _find_table(tabs, "number", "province", "number")
+        if t:
+            _pairs(t, codes, "1905–1927 plates (province number)")
+        t = _find_table(tabs, "code", "province", "reason", "years")
+        if t:
+            for r in t[1:]:
+                if len(r) >= 4:
+                    _add(codes, r[0], r[1], r[3], note=r[2])
+        if "ROMA" in codes and "RM" not in codes:          # old plates spelled ROMA out; the modern abbreviation is RM
+            _add(codes, "RM", "Rome", "optional right band since 1999 (old plates spell out ROMA)")
+    elif cc == "ES":
+        note = "Provincial code at the start of plates 1900–2000 (M-1234-AB); the national system since September 2000 has none."
+        t = _find_table(tabs, "code", "province", "notes")
+        for r in (t or [])[1:]:
+            _add(codes, r[0], r[1], "1900–2000 plates", note=r[2] if len(r) > 2 else "")
+    elif cc == "FR":
+        note = ("Département number: at the end of FNI plates 1950–2009 (1234 AB 75); optional on the right band of SIV "
+                "plates since 2009 (the owner's choice, not proof of residence). Algerian numbers are French Algeria (until 1962).")
+        t = _find_table(tabs, "insee code")
+        for r in (t or [])[1:]:
+            if len(r) >= 6:
+                _add(codes, r[0], r[3], "FNI 1950–2009; optional SIV band since 2009", region=r[5], note=f"prefecture {r[4]}")
+        for head, era in (("before 1957 no.", "French Algeria, until 1957"), ("1957–1962 no.", "French Algeria, 1957–1962")):
+            t = _find_table(tabs, head)
+            for r in (t or [])[1:]:
+                if len(r) >= 3:
+                    _add(codes, r[0], r[1], era, region="Algeria", note=f"prefecture {r[2]}")
+    elif cc == "DE":
+        note = "District code (Unterscheidungszeichen) before the hyphen; old codes reintroduced since 2012 also appear."
+        for t in tabs:
+            h = [x.strip().lower() for x in t[0]]
+            if len(h) >= 4 and h[0].startswith("abk") and h[1].startswith("stadt"):
+                for r in t[1:]:
+                    if len(r) >= 4:
+                        _add(codes, r[0], r[1], "current", region=r[3], note=f"from {r[2]}" if r[2] else "")
+    elif cc == "AT":
+        note = "District code on the left since 1990, with the state's coat of arms."
+        t = _find_table(tabs, "code", "city, district")
+        for r in (t or [])[1:]:
+            _add(codes, r[0], r[1], "current", region=r[2] if len(r) > 2 else "", note=r[3] if len(r) > 3 else "")
+    elif cc == "CH":
+        note = "Canton code on every plate (ZH 123456); the canton arms are on the rear plate."
+        t = _find_table(tabs, "code", "flag", "canton")
+        for r in (t or [])[1:]:
+            if len(r) >= 3:
+                _add(codes, r[0], r[2], "current")
+    elif cc == "GR":
+        note = "Two Greek letters (only Latin look-alikes are used) give the prefecture of registration."
+        t = _find_table(tabs, "code", "prefecture")
+        for r in (t or [])[1:]:
+            if len(r) >= 2:
+                _add(codes, r[0].upper(), r[1], (r[3] if len(r) > 3 else "") or "?", note=r[2] if len(r) > 2 else "")
+    elif cc == "TR":
+        note = "Province number first on every plate (34 ABC 123 = Istanbul)."
+        t = _find_table(tabs, "code", "province", "code")
+        if t:
+            _pairs(t, codes, "current")
+    elif cc == "GB":
+        note = ("Since Sept 2001: first letter = region, second = DVLA office (memory tag); the two digits after it are "
+                "the age identifier (see 'dating'). Older suffix (1963–83) and prefix (1983–2001) letters date the car.")
+        t = _find_table(tabs, "first letter", "official local mnemonic")
+        for r in (t or [])[1:]:
+            if len(r) >= 4:
+                for s in r[3].split():
+                    if re.fullmatch(r"[A-Z]", s):
+                        _add(codes, r[0].strip() + s, r[2], "since 2001 (memory tag)", region=r[1])
+        for t in tabs:
+            h = [x.strip().lower() for x in t[0]]
+            if len(h) >= 3 and h[0] == "year" and h[1].startswith("1 march"):
+                for r in t[1:]:
+                    if len(r) >= 3:
+                        dating.setdefault("age_identifier", {})[r[1].strip()] = f"registered 1 Mar–31 Aug, year {r[0].strip()}"
+                        dating["age_identifier"][r[2].strip()] = f"registered 1 Sep–end Feb, year {r[0].strip()}"
+        t = _find_table(tabs, "suffix letter")
+        for r in (t or [])[1:]:
+            if len(r) >= 2:
+                dating.setdefault("suffix_1963_1983", {})[r[0].strip()] = r[1].strip()
+        t = _find_table(tabs, "letter", "dates of issue")
+        for r in (t or [])[1:]:
+            if len(r) >= 2:
+                dating.setdefault("prefix_1983_2001", {})[r[0].strip()] = r[1].strip()
+    elif cc == "MA":
+        note = ("Since 2000: number | Arabic letter | prefecture number (1–89). 1983–2000 plates ended with a region "
+                "number 1–9 (not tabled). Codes 63, 68–71, 89 are the southern provinces.")
+        sec = html[html.find("Liste_des_num"):] if "Liste_des_num" in html else html
+        m = re.search(r"<ol[^>]*>(.*?)</ol>", sec, re.S)
+        if m:
+            items = [_clean(li) for li in re.findall(r"<li[^>]*>(.*?)</li>", m.group(1), re.S)]
+            for k, place in enumerate(items, 1):
+                _add(codes, str(k), place, "since 2000")
+    return {"codes": codes, "dating": dating, "note": note}
+
+
+def build_plate_codes(proxy: str | None, from_dir: str | None = None) -> dict:
+    out, n = {}, 0
+    for cc, (lang, title) in PLATE_PAGES.items():
+        if from_dir:
+            html = (Path(from_dir) / f"plates_{cc}.html").read_text(encoding="utf-8", errors="replace")
+        else:
+            html = _wiki_html(lang, title, proxy)
+        d = parse_plate_page(cc, html)
+        d["source"] = _wiki_url(lang, title)
+        out[cc] = d
+        n += len(d["codes"])
+        print(f"  {cc}: {len(d['codes'])} codes" + (f", dating tables {sorted(d['dating'])}" if d["dating"] else ""), flush=True)
+    return {"count": n, "countries": out}
+
+
 PARSERS = {"cn_plates": parse_cn_plates, "cn_area_codes": parse_cn_area_codes, "calling_codes": parse_calling_codes,
            "driving_side": parse_driving_side, "territories": parse_territories, "cn_admin": parse_cn_admin}
 
@@ -346,6 +516,13 @@ def cmd_update(args) -> None:
     DATA.mkdir(parents=True, exist_ok=True)
     names = list(SOURCES) if args.table in ("all", None) else [args.table]
     for name in names:
+        if name == "plate_codes":
+            data = build_plate_codes(args.proxy, args.from_dir)
+            srcs = [_wiki_url(lang, t) for lang, t in PLATE_PAGES.values()]
+            payload = {"_meta": {"source": srcs, "fetched": date.today().isoformat(), "count": data["count"]}, **data}
+            (DATA / "plate_codes.json").write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(f"plate_codes: {data['count']} codes in {len(data['countries'])} countries -> {DATA / 'plate_codes.json'}")
+            continue
         if args.from_dir:
             src = Path(args.from_dir) / LOCAL_NAMES[name]
             raw = src.read_text(encoding="utf-8", errors="replace")
@@ -397,6 +574,62 @@ def lookup_plate(value: str) -> dict:
             p = ""
         matches.append({"admin1": prov, "admin2": p, "note": note})
     return _result("plate", value, matches, src, fetched)
+
+
+_PLATE_NAMES = {"italy": "IT", "spain": "ES", "france": "FR", "germany": "DE", "austria": "AT", "switzerland": "CH",
+                "greece": "GR", "turkey": "TR", "türkiye": "TR", "united kingdom": "GB", "uk": "GB", "great britain": "GB",
+                "britain": "GB", "england": "GB", "scotland": "GB", "wales": "GB", "morocco": "MA"}
+
+
+def _plate_cc(country: str) -> str:
+    c = country.strip()
+    if c.upper() in PLATE_PAGES:
+        return c.upper()
+    return _PLATE_NAMES.get(_country_en(c).lower(), _PLATE_NAMES.get(c.lower(), c.upper()))
+
+
+def _plate_keys(cc: str, v: str) -> list[str]:
+    s = re.sub(r"[\s\-·.]", "", v).upper()
+    keys = [s]
+    if s.isdigit():
+        if cc == "TR":
+            keys.append(s.zfill(2))
+        elif cc == "FR" and len(s) == 1:
+            keys.append(s.zfill(2))
+        elif cc == "MA":
+            keys.append(str(int(s)))
+    if cc == "GR":
+        keys.append(s.translate(GREEK_LOOKALIKE))
+    if cc == "IT" and s == "ROMA":
+        keys.append("RM")
+    return list(dict.fromkeys(keys))
+
+
+def lookup_plate_code(value: str, country: str | None = None) -> dict:
+    """Regional plate code outside China → place + the era it was used (a regional code often dates the photo too)."""
+    d = load("plate_codes")
+    fetched = d["_meta"]["fetched"]
+    ccs = list(d["countries"])
+    if country:
+        cc = _plate_cc(country)
+        if cc not in d["countries"]:
+            return _result("plate-code", value, [], "", fetched, f"no regional table for {country}; tables: {', '.join(ccs)}")
+        ccs = [cc]
+    ms = []
+    for cc in ccs:
+        ent = d["countries"][cc]
+        for k in _plate_keys(cc, value or ""):
+            for e in ent["codes"].get(k, []):
+                ms.append({"admin1": e["place"], "admin2": e.get("region", ""),
+                           "note": f"[{cc} {k}] {e['era']}" + (f"; {e['note']}" if e.get("note") else "")})
+        if cc == "GB":
+            key = re.sub(r"\s", "", value or "").upper()
+            for tname, tab in (ent.get("dating") or {}).items():
+                if key in tab:
+                    ms.append({"admin1": f"{tname.replace('_', ' ')} {key}", "admin2": "", "note": f"[GB] {tab[key]} (dates the registration)"})
+    src = d["countries"][ccs[0]]["source"] if len(ccs) == 1 else "Wikipedia, one page per country (data/plate_codes.json)"
+    note = d["countries"][ccs[0]]["note"] if len(ccs) == 1 else ("" if ms else "no country has this regional code; give --country or check the reading")
+    return _result("plate-code", value, ms, src, fetched, note)
 
 
 def lookup_area_code(value: str) -> dict:
@@ -533,6 +766,8 @@ def cmd_lookup(args) -> None:
     k = args.kind
     if k in ("plate", "plate-prefix"):
         res = lookup_plate(args.value or "")
+    elif k == "plate-code":
+        res = lookup_plate_code(args.value or "", args.country)
     elif k == "area-code":
         res = lookup_area_code(args.value or "")
     elif k == "calling-code":
@@ -546,7 +781,7 @@ def cmd_lookup(args) -> None:
     elif k == "coverage":
         res = lookup_coverage(args.value)
     else:
-        sys.exit("kind: plate / plate-prefix / area-code / calling-code / driving-side / territories / admin / coverage")
+        sys.exit("kind: plate / plate-prefix / plate-code / area-code / calling-code / driving-side / territories / admin / coverage")
     if args.json:
         print(json.dumps(res, ensure_ascii=False, indent=1))
         return

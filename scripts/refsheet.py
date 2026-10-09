@@ -14,6 +14,8 @@ comparing against current imagery instead of memory.
   refsheet.py regions "ES:Andalusia,ES:Galicia,PT:Faro" --n 6 --out ref_regions.jpg
   refsheet.py countries KE,UG,TZ --n 8 --side right --rural --out ref.jpg    # look at the roadside, small towns only
   refsheet.py countries US --n 6 --pitch -10 --fov 70                      # tilt down for road paint and curbs
+  refsheet.py towns --points towns.json --n 6 --pitch -12 --side right     # compare street furniture across candidate towns (hydrants, bins, signs)
+  refsheet.py towns "45.764,4.836:Lyon;45.771,4.880:Villeurbanne" --n 6 --pitch -12
 
 Each cell is labelled with the town, region, capture date and heading; ref.index.json keeps the panorama ids
 and coordinates. Rows with empty cells mean no coverage near the sampled towns (itself a clue for game-style
@@ -24,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import random
 import sys
@@ -41,9 +44,19 @@ from gsv import _font  # noqa: E402
 SIDE_OFFSET = {"ahead": 0.0, "right": 90.0, "behind": 180.0, "left": 270.0}
 
 
-def candidates(spec: str, mode: str) -> list[dict]:
-    """countries: 'PT,ES' → [{label, cc, admin1}]; regions: 'ES:Andalusia,PT:Faro'."""
+def candidates(spec: str, mode: str, args=None) -> list[dict]:
+    """countries: 'PT,ES' → [{label, cc, admin1}]; regions: 'ES:Andalusia,PT:Faro'; towns: --points file or 'lat,lon:Label,...'."""
     out = []
+    if mode == "towns":
+        if getattr(args, "points", None):
+            for name, ll in json.loads(Path(args.points).read_text()).items():
+                out.append({"label": name, "cc": "", "admin1": "", "center": [float(ll[0]), float(ll[1])]})
+            return out
+        for part in [x.strip() for x in spec.split(";") if x.strip()]:
+            geo, _, label = part.partition(":")
+            lat, lon = (float(v) for v in geo.split(","))
+            out.append({"label": label or f"{lat:.3f},{lon:.3f}", "cc": "", "admin1": "", "center": [lat, lon]})
+        return out
     for part in [x.strip() for x in spec.split(",") if x.strip()]:
         if mode == "regions":
             if ":" not in part:
@@ -84,6 +97,17 @@ def one_cell(cand: dict, town: dict, args) -> dict | None:
 
 
 def sample_towns(cand: dict, args) -> list[dict]:
+    if cand.get("center"):                                  # towns mode: jittered points in a disk around the town centre
+        rng = random.Random(None if args.seed is None else args.seed + hash(cand["label"]) % 1000)
+        lat0, lon0 = cand["center"]
+        pts = []
+        for k in range(args.n * 4):
+            r = args.spread * math.sqrt(rng.random())
+            th = rng.uniform(0, 2 * math.pi)
+            dlat = (r * math.cos(th)) / 111320
+            dlon = (r * math.sin(th)) / (111320 * max(0.2, math.cos(math.radians(lat0))))
+            pts.append({"name": cand["label"], "admin1": "", "lat": lat0 + dlat, "lon": lon0 + dlon})
+        return pts
     rng_seed = None if args.seed is None else args.seed + hash(cand["label"]) % 1000
     min_pop = 0 if args.rural else args.min_pop
     try:
@@ -108,7 +132,7 @@ def build_rows(cands: list[dict], args) -> list[tuple[dict, list[dict]]]:
                 res = fu.result()
             except Exception:  # noqa: BLE001
                 res = None
-            if res and len(cells[i]) < args.n and all(SL.dist_m(tuple(res["wgs"]), tuple(x["wgs"])) > 2000 for x in cells[i]):
+            if res and len(cells[i]) < args.n and all(SL.dist_m(tuple(res["wgs"]), tuple(x["wgs"])) > args.dedup_m for x in cells[i]):
                 cells[i].append(res)
                 print(f"  {c['label']}: {len(cells[i])}/{args.n} ({res['town']}, {res['date']})", flush=True)
     return [(c, cells[i]) for i, c in enumerate(cands)]
@@ -129,15 +153,19 @@ def compose(rows: list[tuple[dict, list[dict]]], args) -> Image.Image:
             x = lab_w + i * args.tile_w
             S.paste(c["image"], (x, y))
             d.rectangle([x, y, x + args.tile_w, y + 18], fill=(0, 0, 0))
-            lab = f"{c['town'][:16]}, {c['admin1'][:14]} {c['date'] or ''} h{c['heading']}"
+            where = f"{c['town'][:16]}, {c['admin1'][:14]}" if c["admin1"] else c["town"][:24]
+            lab = f"{where} {c['date'] or ''} h{c['heading']}"
             d.text((x + 3, y + 2), lab, fill="yellow", font=_font(13, lab))
     return S
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("mode", choices=["countries", "regions"])
-    ap.add_argument("spec", help="countries: PT,ES,IT (names or ISO2); regions: ES:Andalusia,PT:Faro")
+    ap.add_argument("mode", choices=["countries", "regions", "towns"])
+    ap.add_argument("spec", nargs="?", default="", help="countries: PT,ES,IT; regions: ES:Andalusia,PT:Faro; towns: 'lat,lon:Label;lat,lon:Label' (or --points)")
+    ap.add_argument("--points", help="towns mode: a {name:[lat,lon]} JSON (one row per town), e.g. from opendata.py / geodata.py towns / osm.py")
+    ap.add_argument("--spread", type=float, default=1200, help="towns mode: sample street views within this radius (m) of each town centre, default 1200")
+    ap.add_argument("--dedup-m", type=float, default=2000, help="minimum spacing between two views in a row (default 2000; towns mode uses 150)")
     ap.add_argument("--n", type=int, default=6, help="views per row")
     ap.add_argument("--side", choices=list(SIDE_OFFSET), default="ahead", help="look along the road, or at one roadside")
     ap.add_argument("--pitch", type=float, default=0)
@@ -156,11 +184,17 @@ def main() -> None:
     ap.add_argument("--cache", type=Path, default=Path(".geo-cache/gsv"))
     ap.add_argument("--out", type=Path, default=Path("refsheet.jpg"))
     ap.add_argument("--proxy", default=os.environ.get("GEO_PROXY"), help=PROXY_HELP)
-    args = ap.parse_args()
+    # a towns spec can start with a negative latitude ("-27.47,153.03:Brisbane"): a leading space keeps argparse from
+    # reading it as an option; float() ignores the space
+    args = ap.parse_args([" " + a if a[:1] == "-" and a[1:2].isdigit() else a for a in sys.argv[1:]])
     model_proxy_env(args.proxy)
     if args.seed is not None:
         random.seed(args.seed)
-    cands = candidates(args.spec, args.mode)
+    if args.mode == "towns" and args.dedup_m == 2000:
+        args.dedup_m = 150                                  # keep several spots within one town
+    if args.mode == "towns" and not (args.points or args.spec):
+        sys.exit("towns mode needs --points file.json or a 'lat,lon:Label;…' spec")
+    cands = candidates(args.spec, args.mode, args)
     if any(c["cc"] == "CN" for c in cands):
         print("Mainland China has no Google Street View: use baidu_pano.py sample", file=sys.stderr)
     print(f"Sampling {len(cands)} candidates × {args.n} views (towns tried in parallel) …", flush=True)

@@ -144,7 +144,8 @@ Then reconcile with your gut call:
 What the pieces are worth (details in `references/models.md`):
 - **Metadata**: GPS is a strong lead but must be confirmed by the scene; the UTC offset narrows countries for
   that date; filename patterns reveal the app (WhatsApp, WeChat, KakaoTalk, stock agencies with searchable IDs);
-  embedded previews can show the uncropped original.
+  embedded previews can show the uncropped original (a RAW file's full-size preview often shows past the edit's
+  crop); a motion photo's embedded video (`meta.py --out-dir` extracts it) adds frames and angles.
 - **Text**: the most valuable evidence in most photos. Apple's OCR reads ~30 languages but not Greek, Hebrew,
   Georgian, Armenian, Indic scripts, Sinhala, Khmer, Lao, Burmese or Ethiopic — read those yourself from the
   crops and run `textgeo.py --text "…"`.
@@ -164,7 +165,13 @@ Every legible string is a search query. Use your web-search tool aggressively an
 - **Exact text in quotes**: shop names, street names, slogans, notices, bus destinations, school names, licence
   numbers on taxis, construction-permit boards. Add the candidate town or country to disambiguate.
 - **Phone numbers, URLs, e-mail domains**: `textgeo.py` resolves them to country and often city; then search the
-  number or domain to find the business address.
+  number or domain to find the business address. A digit you can't read: `textgeo.py --phone-pattern "6941 2?7788"
+  --country GR` lists the valid candidates (a landline's area code still gives the city); search each in quotes.
+- **House numbers**: a readable number is a searchable key. `osm.py addr --area <town> --number 145`; two
+  numbers seen close together on one street → `--number 214,226 --within 60` collapses a whole region to a few
+  blocks. OSM lacks addresses in many places: then search `"145" "<town>"` on property portals or the address register.
+- **Dark or flat details** (a plate in shadow, a sign at dusk): `imgprep.py reveal photo.jpg --box …` stretches
+  the crop eight ways (levels, equalize, shadow gammas, CLAHE); read the sheet before calling it illegible.
 - **Brands and chains**: `textgeo.py` says where a brand operates (incl. US states); then search the store
   locator or "<brand> <town>" for branches.
 - **Route numbers and road names**: `osm.py route` / `osm.py find` turn them into corridors; search the name.
@@ -222,7 +229,9 @@ East, China, plus `streetview.md` for game imagery). Record what decided it as e
 
 ## Step 5 — Region, town, neighbourhood
 
-- Regional codes: plates (`clues.py lookup plate …` for China; the world files for others), area codes and phone
+- Regional codes: plates (`clues.py lookup plate …` for China; `clues.py lookup plate-code PA --country IT` for
+  Italy, Spain, France, Germany, Austria, Switzerland, Greece, Turkey, the UK and Morocco; the world files for
+  others), area codes and phone
   geocoding (`textgeo.py`), postal codes, road-number systems, bilingual/regional languages.
 - Lists, then evidence: `board.py children "<country or region>"` adds every subdivision; rank them with
   evidence. `refsheet.py regions "ES:Andalusia,ES:Galicia"` compares regions on the ground; `prior.py` lists its
@@ -232,6 +241,13 @@ East, China, plus `streetview.md` for game imagery). Record what decided it as e
   river, relief) and keep those that can produce the photo; then `pano.py coverage` on each survivor.
 - Climate, vegetation, terrain and architecture gradients inside the country (`references/world/*.md`).
 - Shops, schools, churches and other named places in the text → `poi.py "<name>" --city <town>` / web search.
+- Neighbouring towns look alike? Street furniture is bought per city (hydrants, bins, street-name signs, lamp
+  posts): `refsheet.py towns --points towns.json --pitch -12 --side right` puts one row per town side by side.
+- **Turn the rarest clue you are sure of into a filter** (`references/datasets.md`): a coloured bus lane, a less
+  common street-tree species, a posted speed limit, a building height beside a stop or a school. City open data
+  (`opendata.py`) and OSM tags (`osm.py find/near/addr`) collapse a city to a short list of points; check them
+  on satellite and street level with three or four deal-breakers in mind. Filter on the one attribute you are
+  sure of and rank by the rest: one missing tag or guessed attribute drops the answer.
 
 ## Step 6 — Pinpoint (deep mode)
 
@@ -242,6 +258,9 @@ Pick the branch that fits what you have (details in the references):
 | A unique anchor (building, statue, tower) | sight lines, alignment, tangents, camera height; `geo.py`, `pose.py` | `geometry.md` |
 | Mountains / skyline | `terrain.py view/scan/fit` render-and-compare; one sight line, then a second constraint | `geometry.md`, `corridors.md` 4.3 |
 | Shadows, sun in frame, time known | `sun.py locate/when/facing/compass` | `sky.md` |
+| A date (EXIF, a known day) or "which day?" | `sun.py weather` (past cloud/sun/rain/snow, rank days); `tiles.py --source gibs:<date>` (that day's satellite pass: clouds, snow, smoke) | `sky.md` §6 |
+| A distinctive public asset in a city with open data | `opendata.py search/columns/get --points` → `tiles.py sheet` / `gsv.py sheet` | `datasets.md` |
+| Readable house numbers | `osm.py addr --number 214,226 --within 60` | `datasets.md` |
 | Route number, railway, power line, big river | `osm.py route/crossings/along/near/intersect` | `corridors.md` |
 | Street layout, no anchor | `osm.py street-scan` → `tiles.py sheet` → street level | `corridors.md` |
 | Scene elements only (field + road + coast) | `sat_scan.py grid --query …` ranks satellite cells; look at the top 20–30 | `search.md` |
@@ -279,7 +298,9 @@ Before you call it (`references/verify.md`):
 - For hard or high-stakes cases, if you can start a sub-agent, give it only the photo and your answer and ask
   it to find the strongest reason the answer is wrong (a red team). Fix or downgrade what it finds.
 - `board.py check` then `board.py report --merge result.json`; build the evidence image
-  (`evidence.py spec.json --out evidence.jpg`: satellite + camera wedge + comparison panels).
+  (`evidence.py spec.json --out evidence.jpg`: satellite + camera wedge + comparison panels). For a
+  street-level match, add the feature-by-feature proof: `evidence.py match.json --out match.jpg --match` draws
+  colour-coded lines between the same balconies, stripes and roof lines in the photo and the reference.
 
 ## Step 8 — Answer and archive
 
@@ -323,10 +344,14 @@ location becomes known, record it: `photo_session.py truth <folder> --latitude �
   the field of view is the viewer's setting (often ~90°). The smeared patch at the bottom of the frame is the
   blurred camera car, not a shadow — its colour and roof gear are themselves clues (`streetview.md`).
 - **Historical photos, scans, postcards**: the world prior is useless; lean on architecture, vehicles, text,
-  archives, reverse search and `references/search.md`; dating clues matter as much as place. For the street:
-  the oldest street-level imagery of each candidate town (local archives often beat Google), `tiles.py wayback`,
-  a full `sweep.py` (MegaLoc found a 1990s print among 9,203 panoramas from 2013), and the across-years checks
-  in `references/streetlevel.md` §5.
+  archives, reverse search and `references/search.md`; dating clues matter as much as place. Old plates are
+  often regional where today's are not (Italy to 1994, Spain to 2000, France to 2009): read the code with
+  `imgprep.py reveal`, then `clues.py lookup plate-code <code>` gives the province and the years it was used.
+  For the street: the oldest street-level imagery of each candidate town (local archives often beat Google),
+  `tiles.py wayback`, historical aerials (`data-sources.md`), a full `sweep.py` (MegaLoc found a 1990s print
+  among 9,203 panoramas from 2013), and the across-years checks in `references/streetlevel.md` §5. A
+  black-and-white photo goes into the sweep as it is: colourising measured no better than grayscale (read the
+  top 50 and the clusters), and a colourised copy's colours are guesses, never evidence.
 - **Indoor, close-up, product shots**: text, plugs and sockets, packaging, provenance; reverse search; metadata.
 - **Puzzles (图寻 / 网络迷踪 style)**: setters pick obscure places — keep priors uniform, distrust fame, and
   read `references/world/china.md` for China.
@@ -340,22 +365,23 @@ location becomes known, record it: `photo_session.py truth <folder> --latitude �
 |---|---|
 | `photo_session.py` (python3) | archive start/finish, `truth`, `scoreboard`, `list` |
 | `recon.py` | the whole local first pass in one command |
-| `meta.py` | metadata, UTC-offset countries, filename/platform hints, embedded previews, AI-provenance flags |
-| `intake.py`, `ocr.py`, `imgprep.py`, `exif.py` | crops, variants, OCR (auto language), zooms; Yandex + Baidu reverse image search |
-| `textgeo.py` | text → scripts, letters, language, phones, domains, postal codes, currency, regional words, brands, places |
+| `meta.py` | metadata, UTC-offset countries, filename/platform hints, embedded previews, motion-photo video, AI-provenance flags |
+| `intake.py`, `ocr.py`, `imgprep.py`, `exif.py` | crops, variants, OCR (auto language), zooms, `reveal` (read text lost in shadow); Yandex + Baidu reverse image search |
+| `textgeo.py` | text → scripts, letters, language, phones (`--phone-pattern` for unreadable digits), domains, postal codes, currency, regional words, brands, places |
+| `opendata.py` | city open-data portals: find a dataset (bus lanes, street trees, hydrants…), filter it, export candidate points |
 | `geodata.py` | country facts, aliases, GeoNames search/reverse/sample, the biggest towns of a region (`towns`), national gazetteers |
 | `prior.py` | StreetCLIP + GeoCLIP world prior with self-assessment (ranking only) |
 | `detect.py` | numbered crops of signs, plates, poles, bollards, markings, vehicles |
 | `calib.py` | field of view, pitch, roll, horizon with uncertainty |
 | `board.py` | candidates, clues, evidence (capped by status), exclusions, `ingest`, rank/next/check/report |
 | `clues.py` | lookups: calling codes, driving side, territories, China plates/area codes/admin |
-| `refsheet.py` | Street View sample rows per candidate country/region, side by side |
+| `refsheet.py` | Street View sample rows per candidate country/region/town, side by side |
 | `pano.py` | street-level imagery from every scriptable provider (Google, Apple, Bing, Yandex, Naver, Kakao, Mapy, Já, KartaView, Panoramax, Mapillary) and any source you find yourself (a manifest): coverage, list, render, sheet |
 | `sweep.py` | city-scale search: index every panorama of one or more towns, rank them for the photo with MegaLoc, clusters, reproduce the view |
 | `gsv.py`, `baidu_pano.py`, `match.py` | Google and Baidu discovery and rendering, comparison sheets, similarity ranking (MegaLoc / DINOv2 / CLIP) |
-| `osm.py`, `poi.py`, `gazetteer.py` | OpenStreetMap queries, corridors, place names, admin areas |
-| `tiles.py`, `sat_scan.py`, `evidence.py` | satellite/map mosaics (Google, hybrid with street names, Esri, Bing, Esri Wayback history since 2014, Sentinel-2 by year), town-fabric sheets, CLIP-ranked satellite scans, evidence images |
-| `terrain.py`, `sun.py`, `geo.py`, `pose.py` | skylines, sun/shadows, bearings/frames/conversions, camera pose |
+| `osm.py`, `poi.py`, `gazetteer.py` | OpenStreetMap queries (incl. `addr` house numbers), corridors, place names, admin areas |
+| `tiles.py`, `sat_scan.py`, `evidence.py` | satellite/map mosaics (Google, hybrid with street names, Esri, Bing, Esri Wayback history since 2014, Sentinel-2 by year, NASA GIBS daily passes), town-fabric sheets, CLIP-ranked satellite scans, evidence images and colour-coded match sheets |
+| `terrain.py`, `sun.py`, `geo.py`, `pose.py` | skylines, sun/shadows, past weather by day, bearings/frames/conversions, camera pose |
 | `bench.py` | benchmarks: Street View test sets, scoring predictions and sessions |
 | `doctor.py` | setup check (`--network`, `--models`) |
 
