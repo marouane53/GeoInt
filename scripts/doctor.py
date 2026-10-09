@@ -7,7 +7,7 @@
 
   uv run scripts/doctor.py                   local tools, data, caches, browser, writable directory
   uv run scripts/doctor.py --network         also probe the public services the tools use
-  uv run scripts/doctor.py --models          also load each local model once (downloads ~4.5 GB on first run)
+  uv run scripts/doctor.py --models          also load each local model once (downloads ~6.2 GB on first run)
   uv run scripts/doctor.py --json            machine-readable results on stdout
 
 Network probes only check reachability, not image uploads, API stability, coverage, or model inference.
@@ -44,11 +44,15 @@ SERVICES = {
     "Brand index (jsDelivr)": "https://cdn.jsdelivr.net/npm/name-suggestion-index@8.0.20260918/package.json",
     "Hugging Face": "https://huggingface.co/",
     "GitHub releases (GeoCalib)": "https://github.com/cvg/GeoCalib/releases",
+    "Panoramax (OSM France instance)": "https://panoramax.openstreetmap.fr/api/",
+    "Esri Wayback (historical imagery)": "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json",
+    "EOX Sentinel-2 cloudless": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/0/0/0.jpg",
 }
 MODEL_CACHES = {
     "StreetCLIP (prior.py)": "models--geolocal--StreetCLIP",
     "CLIP ViT-L/14 (prior.py GeoCLIP backbone)": "models--openai--clip-vit-large-patch14",
     "OWLv2 (detect.py)": "models--google--owlv2-base-patch16-ensemble",
+    "MegaLoc (sweep.py, match.py)": "models--gberton--MegaLoc",
 }
 
 
@@ -157,7 +161,8 @@ def model_checks() -> list[dict]:
     here = Path(__file__).resolve().parent
     uv = os.environ.get("UV") or shutil.which("uv") or "uv"
     rows = []
-    for name, script in (("prior.py models", "prior.py"), ("detect.py model", "detect.py"), ("calib.py model", "calib.py")):
+    for name, script in (("prior.py models", "prior.py"), ("detect.py model", "detect.py"), ("calib.py model", "calib.py"),
+                         ("sweep.py MegaLoc", "sweep.py")):
         try:
             r = subprocess.run([uv, "run", "-q", str(here / script), "--selftest"], capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=3600)

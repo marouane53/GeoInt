@@ -17,6 +17,8 @@ GeoNames data is CC BY 4.0 (https://www.geonames.org).
   geodata.py search "Évora" [--country PT] [--deep]   every place with that name (alternate names included)
   geodata.py reverse 38.57,-7.91          nearest populated place, region, country
   geodata.py sample PT --n 8 [--admin1 Alentejo]      random towns weighted by population (for reference sheets)
+  geodata.py towns PE --admin1 Cusco --top 15             the biggest towns of a region: every one is a candidate
+  geodata.py towns --near 30.92,-6.89 --radius 250         the biggest towns within 250 km of a point (any country)
   geodata.py build-countries              rebuild data/countries.json (maintainers)
 
 Reverse geocoding uses the nearest populated place, so within a few km of a border the
@@ -405,6 +407,29 @@ def sample(cc: str, n: int, admin1_query: str | None = None, alpha: float = 0.5,
     return [P.row(int(i)) for i in pick]
 
 
+def towns(cc: str | None = None, admin1_query: str | None = None, near: tuple[float, float] | None = None,
+          radius_km: float = 100.0, top: int = 20, min_pop: int = 0) -> list[dict]:
+    """The largest populated places of a country, one of its regions, and/or a radius around a point, biggest
+    first. Sections of towns, abandoned and historical places are left out (GeoNames PPLX/PPLQ/PPLH/PPLW)."""
+    P = places()
+    mask = P.pop >= min_pop
+    if cc:
+        mask &= np.array([c == cc.upper() for c in P.cc])
+    if admin1_query:
+        if not cc:
+            raise ValueError("--admin1 needs a country")
+        codes = set(admin1_codes(cc.upper(), admin1_query))
+        if not codes:
+            raise ValueError(f"No region matching '{admin1_query}' in {cc} (see: geodata.py regions {cc})")
+        mask &= np.array([a in codes for a in P.a1])
+    if near:
+        mask &= haversine_km(near[0], near[1], P.lat, P.lon) <= radius_km
+    mask &= np.array([not f.endswith(("PPLX", "PPLQ", "PPLH", "PPLW", "PPLCH")) for f in P.fcode])
+    idx = np.nonzero(mask)[0]
+    idx = idx[np.argsort(-P.pop[idx], kind="stable")][:top]
+    return [P.row(int(i), haversine_km(near[0], near[1], P.lat[i], P.lon[i]) if near else None) for i in idx]
+
+
 # ------------------------------------------------------------------ build countries.json
 
 def build_countries(proxy: str | None) -> dict:
@@ -510,6 +535,14 @@ def main() -> None:
     sm.add_argument("--admin1")
     sm.add_argument("--seed", type=int)
     sm.add_argument("--min-pop", type=int, default=0)
+    tw = sub.add_parser("towns", help="largest towns of a country / region / radius, biggest first")
+    tw.add_argument("country", nargs="?")
+    tw.add_argument("--admin1", help="first-level region name (fuzzy), e.g. 'Cusco'")
+    tw.add_argument("--near", help="lat,lon")
+    tw.add_argument("--radius", type=float, default=100, help="km around --near")
+    tw.add_argument("--top", type=int, default=20)
+    tw.add_argument("--min-pop", type=int, default=0)
+    tw.add_argument("--json", action="store_true")
     rg = sub.add_parser("regions", help="first-level regions of a country with centre and extent (JSON)")
     rg.add_argument("country")
     rg.add_argument("--out")
@@ -562,6 +595,24 @@ def main() -> None:
             sys.exit(f"Unknown country: {args.country}")
         print(json.dumps(sample(c["iso2"], args.n, args.admin1, seed=args.seed, min_pop=args.min_pop),
                          ensure_ascii=False, indent=1))
+    elif args.cmd == "towns":
+        cc = None
+        if args.country:
+            c = country(args.country)
+            if not c:
+                sys.exit(f"Unknown country: {args.country}")
+            cc = c["iso2"]
+        if not cc and not args.near:
+            sys.exit("give a country and/or --near lat,lon")
+        near = _latlon(args.near) if args.near else None
+        rows = towns(cc, args.admin1, near, args.radius, args.top, args.min_pop)
+        if args.json:
+            print(json.dumps(rows, ensure_ascii=False, indent=1))
+        else:
+            print(f"{'name':<26} {'region':<24} {'cc':<3} {'population':>10} {'lat':>9} {'lon':>10}" + ("  km" if near else ""))
+            for r in rows:
+                print(f"{r['name'][:26]:<26} {r['admin1'][:24]:<24} {r['country']:<3} {r['population']:>10} {r['lat']:>9.4f} "
+                      f"{r['lon']:>10.4f}" + (f"  {r['distance_km']:.0f}" if near else ""))
     elif args.cmd == "regions":
         c = country(args.country)
         if not c:

@@ -120,7 +120,7 @@ Other paint: Kenya white edges with solid yellow no-overtaking centre lines (ken
 - Right-hand. Plates white front and rear: serial (up to 5 digits), an Arabic letter (أ ب د ه و ط ي) between two bars, then a prefecture/province number 1–89. Temporary `123456 WW`; dealer `12345 W 18` red on white.
 - Signs follow French designs, in Arabic and French; Tamazight in Tifinagh on motorways (since 2015, sometimes replacing French) and on public buildings. Text on white signs changed from dark blue to black in 2019.
 - Phone +212; landlines 05: 052x Casablanca–Settat, Marrakech, Safi, Agadir and the south (05289 Laâyoune, Dakhla); 053x Rabat, Kénitra, Fès, Meknès, Oujda, Tangier, Tétouan. Mobiles 06, 07. Postal 5 digits. TLD .ma.
-- No official Street View: real-world photos and user panoramas only.
+- No official Google Street View. Street level comes from elsewhere: search for local and historical panorama sites (one example is carte.ma, 2013–2015 panoramas of several cities), Google user photo spheres and place photos (browser), Mapillary and KartaView (patchy). List the region's towns (`geodata.py towns MA --admin1 …`) and compare their fabric on satellite. Source: web search 2026-10.
 
 ### Moroccan plate: Arabic letter between bars + region number
 - Look for: one-line white plate `serial ‖ letter ‖ number`; two-line plates put the letter and number on top

@@ -1,14 +1,15 @@
 # Local models: what they are good for, how to read them, when to ignore them
 
 All models run locally (Apple MPS, CUDA or CPU); nothing about the photo leaves the machine. Weights download
-once (`doctor.py --models`, ~4.5 GB). Licences allow this personal use; StreetCLIP is non-commercial.
+once (`doctor.py --models`, ~6.2 GB). Licences allow this personal use; StreetCLIP is non-commercial.
 
 | Tool | Model | Output | Typical time (M-series Mac, cached) |
 |---|---|---|---|
 | `prior.py` | StreetCLIP (geolocal/StreetCLIP, CLIP ViT-L/14-336, CC BY-NC 4.0) + GeoCLIP (MIT, CLIP ViT-L/14 + GPS gallery of 100k points) | country ranking, regions of the top countries, GeoCLIP clusters, a consistent point guess, self-assessment | ~12 s |
 | `detect.py` | OWLv2 (google/owlv2-base-patch16-ensemble, Apache-2.0), open vocabulary | numbered crops of signs, plates, poles, bollards, markings, vehicles… | ~8 s |
 | `calib.py` | GeoCalib (ETH CVG, ECCV 2024, Apache-2.0) | FOV, focal (px and 35 mm eq.), pitch, roll, horizon line, uncertainties | ~5 s |
-| `match.py` | DINOv2-small / CLIP ViT-B/32 + SIFT | ranks candidate street-level images by similarity | per batch |
+| `sweep.py`, `match.py` | MegaLoc (gberton/MegaLoc, MIT; DINOv2-B + optimal-transport aggregation, 8448-d, 1.7 GB) | visual place recognition: ranks street-level views of the same place across days, years and cameras | ~50 views/s |
+| `match.py` | DINOv2-small / CLIP ViT-B/32 + SIFT | generic similarity (satellite thumbnails, object references) | per batch |
 | `sat_scan.py` | CLIP ViT-B/32 | ranks satellite cells by a text query/preset | per scan |
 | `ocr.py` | Apple Vision (auto language) / RapidOCR | text lines with boxes and confidence | ~5 s |
 | `textgeo.py` | lingua (offline language ID) + rules + libphonenumber + GeoNames + name-suggestion-index | board-ready text signals | ~3 s |

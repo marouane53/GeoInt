@@ -66,7 +66,8 @@ precision than you have. Say which speed you used.
    (likelihood ratio ≤3, cannot exclude).
 5. **List the whole category before choosing.** "Left-hand traffic", "Cyrillic", "tropical", "hill town" each
    define a set; put the whole set on the board (`board.py apply`, `children`, `ingest`) and let evidence rank
-   it. Fame and population are not evidence.
+   it. Fame and population are not evidence. A region hunch means *all* its towns (`geodata.py towns`), not
+   the one your gut named: in a real case the answer was the region's largest town and the gut picked #2.
 6. **Exclusion needs the same standard as confirmation.** Only read text or a computed result (with a file) can
    exclude a candidate, and only over the extent the evidence actually covers (`board.py exclude --covers`).
    "I didn't see X" first needs `geo.py frame`: X may be out of frame, occluded or too small.
@@ -79,6 +80,13 @@ precision than you have. Say which speed you used.
     satellite is "the tower" is itself a hypothesis.
 11. **Use every source, without asking.** Reverse image search (Yandex, Baidu, Google Lens, Bing, TinEye), web
     search, maps and street-level imagery are all pre-approved; a lead nobody followed is a lost answer.
+12. **No Google Street View is not "no street level".** Probe every provider (`pano.py coverage`), then search
+    the web in the local languages for national, local and historical panorama sites, and use the browser for
+    Google Maps photo spheres and place photos, Mapillary and KartaView. A site you find becomes a manifest and
+    is swept like any provider (`references/streetlevel.md`). The decisive imagery is often there.
+13. **Sweep towns, don't sample them.** Once a source covers a candidate town, index every panorama of it and
+    rank them all (`sweep.py`); then the next town. A 15 % sample missed the answer that a full sweep put first
+    of 9,203. In deep mode, don't settle on a town-level answer before the candidate towns have been swept.
 
 ## Step 1 — Gut call (60 seconds, your own eyes and knowledge, no tools)
 
@@ -219,6 +227,9 @@ East, China, plus `streetview.md` for game imagery). Record what decided it as e
 - Lists, then evidence: `board.py children "<country or region>"` adds every subdivision; rank them with
   evidence. `refsheet.py regions "ES:Andalusia,ES:Galicia"` compares regions on the ground; `prior.py` lists its
   favourite regions (a hint, not a decision).
+- Towns: `geodata.py towns <CC> --admin1 "<region>" --json > towns.json` lists every sizable town; compare their
+  fabric at one scale (`tiles.py sheet --points towns.json --zoom 15 --size 640`: grid or medina, street width,
+  river, relief) and keep those that can produce the photo; then `pano.py coverage` on each survivor.
 - Climate, vegetation, terrain and architecture gradients inside the country (`references/world/*.md`).
 - Shops, schools, churches and other named places in the text → `poi.py "<name>" --city <town>` / web search.
 
@@ -236,20 +247,27 @@ Pick the branch that fits what you have (details in the references):
 | Scene elements only (field + road + coast) | `sat_scan.py grid --query …` ranks satellite cells; look at the top 20–30 | `search.md` |
 | ≥4 known points in frame | `pose.py solve` (camera position, heading, height) with `calib.py` FOV/pitch as the start | `geometry.md` §10 |
 | "X isn't in the photo" | `geo.py frame` before excluding | `geometry.md` §11 |
-| Candidate streets to check | `gsv.py sheet --points … --along` / `--headings`; `match.py rank` orders panoramas by similarity | `verify.md` |
+| Candidate streets to check | `gsv.py sheet --points … --along` / `--headings`, `pano.py sheet` (any provider); `match.py rank` (MegaLoc) orders them | `verify.md` |
+| One or a few candidate towns, no anchor | `pano.py list` every source covering them → `sweep.py index` → `sweep.py rank --index t1 t2 …` → clusters, top sheet → `sweep.py view` | `streetlevel.md` |
+| No Google coverage in the country | `pano.py coverage`, local/historical panorama sites (web search in local languages), Google Maps photo spheres and place photos in the browser, a manifest | `streetlevel.md` §1–3 |
+| Old photo (years to decades) | the oldest street-level imagery of each town + `tiles.py wayback`; sweep (MegaLoc copes with decades); verify structure, not inliers | `streetlevel.md` §5 |
 | Motorway / expressway scene | corridor from `osm.py along --line '["highway"="motorway"]' --bbox …` (or the `ref`), then `gsv.py sheet --points … --along --offset 180` for the other carriageway; match barriers, reflectors, dash pattern | `corridors.md` |
 | Mainland China | Baidu panoramas (`baidu_pano.py`), GCJ-02 coordinates (`geo.py convert`) | `world/china.md`, `data-sources.md` |
 | Plane window or drone | aerial branch | `aerial.md` |
 
-City known, street unknown (dense districts): list every covered spot in the candidate area straight from
-Street View — no Overpass needed — then let the matcher rank them and look only at the top 10:
-`gsv.py area --bbox s,w,n,e --spacing 100 --out panos.json` → `match.py rank --query original/<photo> --panos
-panos.json --headings 0,90,180,270 --render gsv --top 10 --sheet m.jpg`. Widen the box only when none fit.
+Town known (or a short list of towns), street unknown: sweep it. List every panorama of each town from every
+source that covers it (`pano.py list --provider google|apple|yandex|… --near <town> --radius <m> --out t.jsonl`,
+or a manifest you wrote for a local site you found), index all of them (`sweep.py index --manifest t.jsonl`, cached and
+reused), rank (`sweep.py rank --index t --query original/<photo>`), then read `clusters.json` and the top sheets.
+A cluster of top hits in one neighbourhood is the strongest signal; reproduce the view with `sweep.py view`.
+For a small Google-only area the older route still works: `gsv.py area … --out panos.json` → `match.py rank
+--panos panos.json --headings 0,90,180,270 --render gsv --top 10 --sheet m.jpg`.
 
-Street level: `gsv.py near <lat,lon> --radius 50` gives the panorama, its capture date, history and address;
-`gsv.py render <id> --heading …` renders any direction; `gsv.py sheet` builds comparison sheets. Compare
-**invariant** features (building outlines, window spacing, pole positions, curbs, ridgelines), not cars, signs
-or foliage. ≥2 unique features for road level, ≥3 plus two constraints for building level.
+Street level: `gsv.py near <lat,lon> --radius 50` gives a Google panorama, its capture date, history and address;
+`pano.py render/sheet` render any provider's panorama in any direction. Compare **invariant** features
+(building outlines, window spacing, pole positions, curbs, ridgelines), not cars, signs or foliage. ≥2 unique
+features for road level, ≥3 plus two constraints for building level. Across years, see `streetlevel.md` §5:
+expect added floors, new render and grown trees, and never decide on local-feature inlier counts.
 
 ## Step 7 — Verify, falsify, red-team
 
@@ -305,12 +323,16 @@ location becomes known, record it: `photo_session.py truth <folder> --latitude �
   the field of view is the viewer's setting (often ~90°). The smeared patch at the bottom of the frame is the
   blurred camera car, not a shadow — its colour and roof gear are themselves clues (`streetview.md`).
 - **Historical photos, scans, postcards**: the world prior is useless; lean on architecture, vehicles, text,
-  archives, reverse search and `references/search.md`; dating clues matter as much as place.
+  archives, reverse search and `references/search.md`; dating clues matter as much as place. For the street:
+  the oldest street-level imagery of each candidate town (local archives often beat Google), `tiles.py wayback`,
+  a full `sweep.py` (MegaLoc found a 1990s print among 9,203 panoramas from 2013), and the across-years checks
+  in `references/streetlevel.md` §5.
 - **Indoor, close-up, product shots**: text, plugs and sockets, packaging, provenance; reverse search; metadata.
 - **Puzzles (图寻 / 网络迷踪 style)**: setters pick obscure places — keep priors uniform, distrust fame, and
   read `references/world/china.md` for China.
-- **No street-level coverage**: satellite scan + terrain + ground photos from news/encyclopedias/Commons
-  (`references/verify.md` §4).
+- **No street-level coverage**: first make sure — `pano.py coverage`, a web search for local and historical
+  panorama sites, Google Maps photo spheres in the browser (`references/streetlevel.md` §1). Then satellite scan
+  + terrain + ground photos from news/encyclopedias/Commons (`references/verify.md` §4).
 
 ## Toolbox (all `uv run ${CLAUDE_SKILL_DIR}/scripts/<name>`)
 
@@ -321,16 +343,18 @@ location becomes known, record it: `photo_session.py truth <folder> --latitude �
 | `meta.py` | metadata, UTC-offset countries, filename/platform hints, embedded previews, AI-provenance flags |
 | `intake.py`, `ocr.py`, `imgprep.py`, `exif.py` | crops, variants, OCR (auto language), zooms; Yandex + Baidu reverse image search |
 | `textgeo.py` | text → scripts, letters, language, phones, domains, postal codes, currency, regional words, brands, places |
-| `geodata.py` | country facts, aliases, GeoNames search/reverse/sample, national gazetteers |
+| `geodata.py` | country facts, aliases, GeoNames search/reverse/sample, the biggest towns of a region (`towns`), national gazetteers |
 | `prior.py` | StreetCLIP + GeoCLIP world prior with self-assessment (ranking only) |
 | `detect.py` | numbered crops of signs, plates, poles, bollards, markings, vehicles |
 | `calib.py` | field of view, pitch, roll, horizon with uncertainty |
 | `board.py` | candidates, clues, evidence (capped by status), exclusions, `ingest`, rank/next/check/report |
 | `clues.py` | lookups: calling codes, driving side, territories, China plates/area codes/admin |
 | `refsheet.py` | Street View sample rows per candidate country/region, side by side |
-| `gsv.py`, `baidu_pano.py`, `match.py` | street-level discovery, rendering, sheets, similarity ranking |
+| `pano.py` | street-level imagery from every scriptable provider (Google, Apple, Bing, Yandex, Naver, Kakao, Mapy, Já, KartaView, Panoramax, Mapillary) and any source you find yourself (a manifest): coverage, list, render, sheet |
+| `sweep.py` | city-scale search: index every panorama of one or more towns, rank them for the photo with MegaLoc, clusters, reproduce the view |
+| `gsv.py`, `baidu_pano.py`, `match.py` | Google and Baidu discovery and rendering, comparison sheets, similarity ranking (MegaLoc / DINOv2 / CLIP) |
 | `osm.py`, `poi.py`, `gazetteer.py` | OpenStreetMap queries, corridors, place names, admin areas |
-| `tiles.py`, `sat_scan.py`, `evidence.py` | satellite mosaics, CLIP-ranked satellite scans, evidence images |
+| `tiles.py`, `sat_scan.py`, `evidence.py` | satellite/map mosaics (Google, hybrid with street names, Esri, Bing, Esri Wayback history since 2014, Sentinel-2 by year), town-fabric sheets, CLIP-ranked satellite scans, evidence images |
 | `terrain.py`, `sun.py`, `geo.py`, `pose.py` | skylines, sun/shadows, bearings/frames/conversions, camera pose |
 | `bench.py` | benchmarks: Street View test sets, scoring predictions and sessions |
 | `doctor.py` | setup check (`--network`, `--models`) |
@@ -341,13 +365,14 @@ location becomes known, record it: `photo_session.py truth <folder> --latitude �
 - Reverse search: three different queries/crops with nothing useful → stop and return to the image.
 - Don't scan candidates one by one while they are still inseparable: run a discriminating test first
   (`board.py next` says which).
-- Look only at the machine's top results (top 30 satellite cells, top 10 panoramas) before widening.
+- Look only at the machine's top results (top 30 satellite cells, the top 15–40 sweep results and their
+  clusters) before widening — but sweep a town completely before calling it a miss, then move to the next town.
 - If you cannot pin a point, say which level is settled and exactly what information is missing.
 
 ## Runtime notes
 
 - Python ≥3.10, `uv`, `curl`; `exiftool` and `ffmpeg` recommended. Check with `doctor.py --network`;
-  `doctor.py --models` pre-downloads the local models (~4.5 GB in `~/.cache/huggingface` and `~/.cache/torch`).
+  `doctor.py --models` pre-downloads the local models (~6.2 GB in `~/.cache/huggingface` and `~/.cache/torch`; MegaLoc is 1.7 GB of it).
 - Shared data caches live in `~/.cache/geoint` (GeoNames 14 MB, brand index 12 MB, panoramas); per-photo
   caches in `.geo-cache/` inside the session folder.
 - Google retired the old Street View lookup endpoint and blocks anonymous thumbnails; `gsv.py` now discovers

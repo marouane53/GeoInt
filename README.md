@@ -15,7 +15,7 @@ tools.
 git clone https://github.com/marouane53/GeoInt.git ~/.agents/skills/geoint   # Codex and other agents
 ln -s ~/.agents/skills/geoint ~/.claude/skills/geoint                         # Claude Code
 uv run ~/.agents/skills/geoint/scripts/doctor.py --network                        # check the setup
-uv run ~/.agents/skills/geoint/scripts/doctor.py --models                         # optional: pre-download local models (~4.5 GB)
+uv run ~/.agents/skills/geoint/scripts/doctor.py --models                         # optional: pre-download local models (~6.2 GB)
 ```
 
 Requirements: Python 3.10+, [uv](https://docs.astral.sh/uv/), `curl`; `exiftool` and `ffmpeg` recommended. Each
@@ -31,9 +31,9 @@ timestamps in this computer's time zone; set `GEOINT_PHOTOS` / `GEOINT_TZ`, or p
 | One-command local first pass | `recon.py` → `meta.py`, `intake.py`, `ocr.py`, `textgeo.py`, `detect.py`, `calib.py`, `prior.py` |
 | Text → place | `textgeo.py` (scripts, telltale letters, language, phone numbers, domains, postal codes, currency, regional words, ~50k brands, GeoNames places), `geodata.py`, `clues.py` |
 | Reasoning ledger | `board.py` — candidates, clues, likelihood ratios capped by evidence type, exclusion rules, rank / next / check / report |
-| Street level | `gsv.py` (near, render, sheet, area), `refsheet.py` (real Street View rows per candidate country or region), `match.py`, `baidu_pano.py` |
+| Street level | `pano.py` (every provider plus your own manifests: coverage, list, render, sheet), `sweep.py` (rank every panorama of whole towns with MegaLoc), `gsv.py`, `refsheet.py` (real Street View rows per candidate country or region), `match.py`, `baidu_pano.py` |
 | Maps and geometry | `osm.py`, `poi.py`, `gazetteer.py`, `tiles.py`, `sat_scan.py`, `terrain.py`, `sun.py`, `geo.py`, `pose.py`, `evidence.py` |
-| Local models | StreetCLIP + GeoCLIP world prior (`prior.py`), OWLv2 object crops (`detect.py`), GeoCalib camera calibration (`calib.py`), DINOv2/CLIP matching |
+| Local models | StreetCLIP + GeoCLIP world prior (`prior.py`), OWLv2 object crops (`detect.py`), GeoCalib camera calibration (`calib.py`), MegaLoc place recognition (`sweep.py`, `match.py`), DINOv2/CLIP matching |
 
 The skill works end to end without asking questions: reverse image search, web search, maps and Street View
 lookups run automatically as part of the flow.

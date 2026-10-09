@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["pillow", "numpy", "torch", "transformers", "opencv-python-headless", "socksio", "pysocks", "requests", "streetlevel"]
+# dependencies = ["pillow", "numpy", "torch", "torchvision", "transformers", "opencv-python-headless", "socksio", "pysocks", "requests", "streetlevel", "huggingface_hub", "safetensors"]
 # ///
 """Similarity ranking of a photo against a batch of candidate real-scene images (street-view renders, satellite thumbnails, reference images): the machine ranks first, you look only at the top few.
 
@@ -19,7 +19,10 @@ Candidate source, pick one of three:
   --panos panos.json --toward lat,lon | --headings 0,60,…   output of baidu_pano.py scan, rendered by heading (can add --within, --spread)
 
 Scoring:
-  global descriptor DINOv2 (facebook/dinov2-small, CLS + patch mean) or CLIP (openai/clip-vit-base-patch32) cosine similarity;
+  global descriptor: MegaLoc (default; a visual place-recognition model built for "same place, different day/year/camera"),
+  DINOv2 (facebook/dinov2-small, CLS + patch mean) or CLIP (openai/clip-vit-base-patch32) cosine similarity. For street-level
+  candidates use megaloc: on a 1990s photo against 2,703 panoramas of 2013 it ranked the true one 1st, dinov2 479th.
+  Use dino/clip for satellite thumbnails and object reference libraries;
   --refine sift re-ranks the top --refine-top by SIFT + RANSAC inlier count (only inliers ≥ 15 count as geometric consistency).
   Final order: those with inliers by inlier count, the rest by global score. Scores are only for ordering; whether it is the same place still requires you to compare ≥3 invariant features.
 
@@ -52,7 +55,7 @@ from PIL import Image, ImageDraw
 sys.path.insert(0, str(Path(__file__).parent))
 import geo  # noqa: E402
 
-MODELS = {"dino": "facebook/dinov2-small", "clip": "openai/clip-vit-base-patch32"}
+MODELS = {"dino": "facebook/dinov2-small", "clip": "openai/clip-vit-base-patch32", "megaloc": "gberton/MegaLoc"}
 
 
 def _proxy_env(proxy: str | None) -> None:
@@ -91,9 +94,14 @@ class Embedder:
 
     def __init__(self, method: str):
         import torch
-        from transformers import AutoModel, CLIPModel
         self.method = method
         self.dev = _device()
+        self.torch = torch
+        if method == "megaloc":
+            import _megaloc
+            self.ml = _megaloc.Embedder(self.dev)
+            return
+        from transformers import AutoModel, CLIPModel
         t0 = time.time()
         try:
             self.model = (CLIPModel if method == "clip" else AutoModel).from_pretrained(MODELS[method]).to(self.dev).eval()
@@ -115,10 +123,22 @@ class Embedder:
             vs.append(im.crop((int(w * 0.4), 0, w, h)).resize((224, 224), Image.BICUBIC))
         return vs
 
+    def _views_full(self, im: Image.Image, multi: bool) -> list[Image.Image]:
+        im = im.convert("RGB")
+        if not multi:
+            return [im]
+        w, h = im.size
+        return [im, im.crop((0, 0, int(w * 0.66), int(h * 0.75))), im.crop((int(w * 0.55), 0, w, h))]
+
     def embed(self, ims: list[Image.Image], multi: bool = False, batch: int = 32) -> np.ndarray:
         """Returns (N, V, D): normalized vectors for the V views of each image."""
         views = [self._views(im, multi) for im in ims]
         flat = [v for vs in views for v in vs]
+        if self.method == "megaloc":
+            # MegaLoc sees the whole frame at 322x322: give it the uncropped views (not the 224 px squares made above)
+            full = [self._views_full(im, multi) for im in ims]
+            arr = self.ml.embed([v for vs in full for v in vs])
+            return arr.reshape(len(ims), len(full[0]) if full else 1, -1)
         out = []
         with self.torch.no_grad():
             for i in range(0, len(flat), batch):
@@ -309,6 +329,8 @@ def cmd_rank(args) -> None:
     strong = [r for r in out_rows if (r["inliers"] or 0) >= args.min_inliers]
     if args.refine != "none":
         print(f"{len(strong)} with inliers ≥{args.min_inliers}" + (": open these first and compare invariant features" if strong else ": this does not mean none of them is right — with a season change, an old capture, or the photo taken on the sidewalk while the street view is from the middle of the road, the ground truth also often has only single-digit inliers. First open the top 10 in --sheet and compare invariant features; if none match, change heading (--spread-headings) or widen the area"))
+        print("note: across years (old prints, decade-old imagery) inlier counts are noise — measured 8–35 for the true panorama and "
+              "for look-alikes alike; there, trust the global ranking plus your own comparison of invariant structure")
     if args.out:
         Path(args.out).write_text(json.dumps([{k: v for k, v in r.items() if k != "id_key"} for r in rows], ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"-> {args.out} (all {len(rows)} rows)")
@@ -353,7 +375,8 @@ def main() -> None:
     r.add_argument("--pitch", type=float, default=10)
     r.add_argument("--fov", type=float, default=80)
     r.add_argument("--max-candidates", type=int, default=400)
-    r.add_argument("--method", choices=["dino", "clip", "both"], default="dino")
+    r.add_argument("--method", choices=["megaloc", "dino", "clip", "both"], default="megaloc",
+                   help="megaloc for street-level candidates (default); dino/clip for satellite thumbnails and objects")
     r.add_argument("--refine", choices=["none", "sift"], default="sift")
     r.add_argument("--refine-top", type=int, default=30)
     r.add_argument("--min-inliers", type=int, default=15)
@@ -365,7 +388,7 @@ def main() -> None:
 
     i = sub.add_parser("index")
     i.add_argument("--images", required=True)
-    i.add_argument("--method", choices=["dino", "clip"], default="dino")
+    i.add_argument("--method", choices=["megaloc", "dino", "clip"], default="megaloc")
     i.add_argument("--out", required=True)
     i.add_argument("--proxy", default=argparse.SUPPRESS)
 

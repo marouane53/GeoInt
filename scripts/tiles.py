@@ -18,6 +18,11 @@ Examples:
   tiles.py sheet --points cands.json --zoom 18 --out cands_sheet.jpg     # one centered thumbnail per candidate point, numbered
   tiles.py px2ll area.jpg --px 812,440 --px 300,95                      # mosaic pixels → lat/lon (for a cropped image add --crop x0,y0 --scale s)
   tiles.py sheet --grid <s,w,n,e> --zoom 17 --size 320 --cols 5 --out town.jpg   # tile a whole urban area with a grid and look cell by cell (find running tracks, factory buildings)
+  geodata.py towns PE --admin1 Cusco --json > towns.json
+  tiles.py sheet --points towns.json --zoom 15 --size 640 --cols 3 --out fabric.jpg     # city fabric: candidate towns side by side, one scale
+  tiles.py fetch 34.0331,-5.0003 --zoom 18 --source google-hybrid --out a.jpg        # satellite with street names (also google-map, esri-street)
+  tiles.py wayback 34.0331,-5.0003 --zoom 17 --out wb.jpg                       # every archived look of the place since 2014
+  tiles.py sheet --points p.json --zoom 15 --source s2:2018 --out s2.jpg           # Sentinel-2 cloudless mosaic of one year (10 m)
 """
 from __future__ import annotations
 
@@ -37,9 +42,93 @@ sys.path.insert(0, str(Path(__file__).parent))
 import geo  # noqa: E402
 
 SOURCES = {
-    "google": "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+    "google": "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",                 # satellite
+    "google-hybrid": "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",          # satellite + street names
+    "google-map": "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",             # road map with labels
     "esri": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    "esri-street": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+    "bing": "https://ecn.t{s}.tiles.virtualearth.net/tiles/a{q}.jpeg?g=14536",       # Bing aerial (quadkey)
 }
+SOURCE_HELP = ("google | google-hybrid | google-map | esri | esri-street | bing | wayback:<release id or YYYY[-MM]> "
+               "(Esri World Imagery Wayback, archived releases since 2014) | s2:<year> (EOX Sentinel-2 cloudless, 10 m, 2018+)")
+WAYBACK_CONFIG = "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json"
+
+
+def _quadkey(x: int, y: int, z: int) -> str:
+    q = ""
+    for i in range(z, 0, -1):
+        m = 1 << (i - 1)
+        q += str((1 if x & m else 0) + (2 if y & m else 0))
+    return q
+
+
+def wayback_releases(proxy: str | None = None) -> list[dict]:
+    """Esri World Imagery Wayback releases, oldest first: [{id, date, url}] (config cached for a week)."""
+    import time as _t
+    cache = Path(os.environ.get("GEOINT_CACHE", Path.home() / ".cache" / "geoint")).expanduser() / "wayback.json"
+    if not cache.exists() or _t.time() - cache.stat().st_mtime > 7 * 86400:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["curl", "-q", "-sS", "-L", "-m", "60", "-o", str(cache), WAYBACK_CONFIG] + curl_args(proxy), check=False)
+    d = json.loads(cache.read_text(encoding="utf-8"))
+    out = []
+    for rid, v in d.items():
+        m = re.search(r"(\d{4}-\d{2}-\d{2})", v.get("itemTitle", ""))
+        out.append({"id": int(rid), "date": m.group(1) if m else "", "url": v["itemURL"]})
+    return sorted(out, key=lambda r: r["date"])
+
+
+def _wayback_pick(spec: str, proxy: str | None) -> dict:
+    """A release by id, or by date (YYYY, YYYY-MM or YYYY-MM-DD): the last release published on or before it."""
+    rel = wayback_releases(proxy)
+    if re.fullmatch(r"\d+", spec) and not re.fullmatch(r"(19|20)\d\d", spec):
+        hit = [r for r in rel if r["id"] == int(spec)]
+        if hit:
+            return hit[0]
+    before = [r for r in rel if r["date"] <= spec + "-99"]
+    return before[-1] if before else rel[0]
+
+
+def tile_url(source: str, x: int, y: int, z: int, proxy: str | None = None) -> str:
+    if source.startswith("wayback:"):
+        r = _wayback_pick(source.split(":", 1)[1], proxy)
+        return r["url"].replace("{level}", str(z)).replace("{row}", str(y)).replace("{col}", str(x))
+    if source.startswith("s2:"):
+        year = source.split(":", 1)[1]
+        return f"https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-{year}_3857/default/g/{z}/{y}/{x}.jpg"
+    if source == "bing":
+        return SOURCES["bing"].format(s=(x + y) % 4, q=_quadkey(x, y, z))
+    if source not in SOURCES:
+        raise SystemExit(f"unknown tile source {source!r}; use {SOURCE_HELP}")
+    return SOURCES[source].format(x=x, y=y, z=z)
+
+
+def _src_tag(source: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", source)
+
+
+def load_points(obj) -> dict:
+    """{name: [lat, lon]} from any of: {name: [lat, lon]}, {id: {"wgs": [lat, lon]}} (gsv.py area), {id: {"lat", "lon"}},
+    a list of {"id"/"name", "lat", "lon"} (geodata.py towns --json), or a .jsonl manifest (pano.py list)."""
+    if isinstance(obj, (str, Path)):
+        text = Path(obj).read_text(encoding="utf-8").strip()
+        if text.startswith("{") and "\n{" in text:
+            obj = [json.loads(line) for line in text.splitlines() if line.strip()]
+        else:
+            obj = json.loads(text)
+    out = {}
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, (list, tuple)):
+                out[str(k)] = [float(v[0]), float(v[1])]
+            elif isinstance(v, dict) and "wgs" in v:
+                out[str(k)] = [float(v["wgs"][0]), float(v["wgs"][1])]
+            elif isinstance(v, dict) and "lat" in v:
+                out[str(k)] = [float(v["lat"]), float(v.get("lon", v.get("lng")))]
+    else:
+        for i, v in enumerate(obj):
+            name = v.get("name") or v.get("id") or f"p{i + 1}"
+            out[str(name)] = [float(v["lat"]), float(v.get("lon", v.get("lng")))]
+    return out
 
 
 def _get(url: str, path: Path, proxy: str | None) -> bool:
@@ -62,8 +151,8 @@ def fetch(center: tuple[float, float], zoom: int, radius: int, out: Path, source
 
     def job(t):
         x, y = t
-        p = cache / f"{source}_{zoom}_{x}_{y}.jpg"
-        ok = _get(SOURCES[source].format(x=x, y=y, z=zoom), p, proxy)
+        p = cache / f"{_src_tag(source)}_{zoom}_{x}_{y}.jpg"
+        ok = _get(tile_url(source, x, y, zoom, proxy), p, proxy)
         return t, p, ok
 
     img = Image.new("RGB", (256 * len(xs), 256 * len(ys)), "black")
@@ -202,8 +291,8 @@ def sheet(points: dict, zoom: int, size: int, cols: int, out: Path, source: str,
             tile = Image.new("RGB", (size, size), "gray")
             for tx in range(int(x0 // 256), int((x0 + size) // 256) + 1):
                 for ty in range(int(y0 // 256), int((y0 + size) // 256) + 1):
-                    p = cache / f"{source}_{zoom}_{tx}_{ty}.jpg"
-                    if _get(SOURCES[source].format(x=tx, y=ty, z=zoom), p, proxy):
+                    p = cache / f"{_src_tag(source)}_{zoom}_{tx}_{ty}.jpg"
+                    if _get(tile_url(source, tx, ty, zoom, proxy), p, proxy):
                         try:
                             tile.paste(Image.open(p), (int(tx * 256 - x0), int(ty * 256 - y0)))
                         except Exception:  # noqa: BLE001
@@ -236,13 +325,13 @@ def main() -> None:
     f.add_argument("--zoom", type=int, default=18, help="17≈1.1m/px for an area, 19≈0.28m/px for a single building")
     f.add_argument("--radius", type=int, default=4, help="rings of tiles around the center tile, 4 → 9x9 tiles")
     f.add_argument("--out", type=Path, required=True)
-    f.add_argument("--source", choices=list(SOURCES), default="google")
+    f.add_argument("--source", default="google", help=SOURCE_HELP)
     f.add_argument("--proxy", default=os.environ.get("GEO_PROXY"), help=PROXY_HELP)
     f.add_argument("--cache", type=Path, default=Path(".geo-cache/tiles"))
 
     mk = sub.add_parser("mark")
     mk.add_argument("image", type=Path)
-    mk.add_argument("--points", type=Path, help="JSON: {name: [lat, lon]}")
+    mk.add_argument("--points", type=Path, help="points: {name: [lat, lon]}, gsv.py area output, geodata.py towns --json, or a pano.py manifest")
     mk.add_argument("--out", type=Path, required=True)
     mk.add_argument("--label", action="store_true")
     mk.add_argument("--geojson", type=Path, action="append", help="overlay GeoJSON (output of osm.py geom), repeatable, one color per file")
@@ -250,14 +339,14 @@ def main() -> None:
 
     sh = sub.add_parser("sheet", help="centered satellite thumbnail for each candidate point, laid out as a numbered comparison page")
     shg = sh.add_mutually_exclusive_group(required=True)
-    shg.add_argument("--points", type=Path, help="JSON {name: [lat, lon]}")
+    shg.add_argument("--points", type=Path, help="points ({name: [lat, lon]}, geodata.py towns --json, a pano.py manifest, gsv.py area output)")
     shg.add_argument("--grid", help="s,w,n,e: cover an area with a grid and render cell by cell (cell name r<row>c<col>: r00 northernmost, c00 westernmost; center coordinates written to <out>.cells.json)")
     sh.add_argument("--step", type=float, help="--grid cell spacing (meters); default leaves 10%% overlap of the area each cell covers")
     sh.add_argument("--zoom", type=int, default=18)
     sh.add_argument("--size", type=int, default=320, help="pixels per cell")
     sh.add_argument("--cols", type=int, default=4, help="cols×cols cells per page")
     sh.add_argument("--out", type=Path, required=True)
-    sh.add_argument("--source", choices=list(SOURCES), default="google")
+    sh.add_argument("--source", default="google", help=SOURCE_HELP)
     sh.add_argument("--proxy", default=os.environ.get("GEO_PROXY"), help=PROXY_HELP)
     sh.add_argument("--cache", type=Path, default=Path(".geo-cache/tiles"))
 
@@ -268,7 +357,50 @@ def main() -> None:
     pl.add_argument("--scale", type=float, default=1.0, help="scale of that image relative to the original mosaic (0.5 for half size)")
     pl.add_argument("--out", type=Path, help="write {p1: [lat, lon], ...}")
 
+    wb = sub.add_parser("wayback", help="historical satellite imagery at a point: every Esri Wayback release where it changed")
+    wb.add_argument("center", help="lat,lon")
+    wb.add_argument("--zoom", type=int, default=17)
+    wb.add_argument("--size", type=int, default=384, help="pixels per thumbnail")
+    wb.add_argument("--out", type=Path, required=True, help="contact sheet of the distinct versions")
+    wb.add_argument("--proxy", default=os.environ.get("GEO_PROXY"), help=PROXY_HELP)
+    wb.add_argument("--cache", type=Path, default=Path(".geo-cache/tiles"))
+
     args = ap.parse_args(_neg_coords(sys.argv[1:]))
+    if args.cmd == "wayback":
+        import hashlib
+        lat, lon = map(float, args.center.split(","))
+        gx, gy = geo.ll2px(args.zoom, lat, lon)
+        tx, ty = int(gx // 256), int(gy // 256)
+        rel = wayback_releases(args.proxy)
+        args.cache.mkdir(parents=True, exist_ok=True)
+
+        def probe(r):
+            p = args.cache / f"wayback-{r['id']}_{args.zoom}_{tx}_{ty}.jpg"
+            ok = _get(tile_url(f"wayback:{r['id']}", tx, ty, args.zoom, args.proxy), p, args.proxy)
+            return r, (hashlib.sha1(p.read_bytes()).hexdigest() if ok else None)
+        with ThreadPoolExecutor(12) as ex:
+            probed = list(ex.map(probe, rel))
+        versions, last = [], None
+        for r, h in probed:
+            if h and h != last:
+                versions.append(r)
+                last = h
+        print(f"{len(rel)} Wayback releases {rel[0]['date']} … {rel[-1]['date']}; the imagery here changed {len(versions)} times:")
+        for r in versions:
+            print(f"  release {r['id']:>6}  published {r['date']}")
+        thumbs = []
+        for r in versions:                   # one thumbnail per version, same framing
+            o = args.out.with_name(f"{args.out.stem}_{r['id']}.jpg")
+            thumbs.append(sheet({r["date"]: [lat, lon]}, args.zoom, args.size, 1, o, f"wayback:{r['id']}", args.proxy, args.cache)[0])
+        cols = min(4, len(thumbs)) or 1
+        S = Image.new("RGB", (cols * args.size, max(1, (len(thumbs) + cols - 1) // cols) * args.size), "black")
+        for k, pg in enumerate(thumbs):
+            S.paste(Image.open(pg), ((k % cols) * args.size, (k // cols) * args.size))
+            pg.unlink()
+        S.save(args.out, quality=88)
+        args.out.with_suffix(".json").write_text(json.dumps(versions, indent=1), encoding="utf-8")
+        print(f"-> {args.out} (dates are publication dates; the capture is earlier)")
+        return
     if args.cmd == "px2ll":
         m = Mosaic(args.image)
         x0, y0 = (float(v) for v in args.crop.split(","))
@@ -283,7 +415,7 @@ def main() -> None:
             print(f"-> {args.out}")
         return
     if args.cmd == "sheet":
-        pts = json.loads(args.points.read_text(encoding="utf-8")) if args.points else grid_points(args.grid, args.zoom, args.size, args.step)
+        pts = load_points(args.points) if args.points else grid_points(args.grid, args.zoom, args.size, args.step)
         if args.grid:
             args.out.with_suffix(".cells.json").write_text(json.dumps(pts, indent=1), encoding="utf-8")
             print(f"grid: {len(pts)} cells (cell name r<row>c<col>, rows north to south, columns west to east; cell center coordinates -> {args.out.with_suffix('.cells.json')})")
@@ -297,7 +429,7 @@ def main() -> None:
     elif args.cmd == "mark":
         if not (args.points or args.geojson or args.sector):
             ap.error("mark needs at least one of --points, --geojson, --sector")
-        mark(args.image, json.loads(args.points.read_text(encoding="utf-8")) if args.points else {}, args.out, args.label,
+        mark(args.image, load_points(args.points) if args.points else {}, args.out, args.label,
              args.geojson, args.sector)
         print(args.out)
 
