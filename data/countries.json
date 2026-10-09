@@ -4,8 +4,8 @@
    "https://download.geonames.org/export/dump/countryInfo.txt (CC BY 4.0)",
    "data/driving_side.json (Wikipedia, CC BY-SA 4.0)"
   ],
-  "note": "center/bbox are population-weighted from GeoNames cities500; bbox is a 0.5–99.5 percentile extent of populated places, omitted for countries spanning the antimeridian.",
-  "count": 250,
+  "note": "center/bbox are population-weighted from GeoNames cities500; bbox is a 0.5–99.5 percentile extent of populated places, omitted for countries spanning the antimeridian. Western Sahara is part of Morocco (MA); GeoNames EH places are read as MA.",
+  "count": 249,
   "unmatched_driving_side_names": []
  },
  "AD": {
@@ -2332,11 +2332,10 @@
   ],
   "neighbours": [
    "NE",
-   "EH",
+   "MA",
    "LY",
    "MR",
    "TN",
-   "MA",
    "ML"
   ],
   "geonameid": 2589581,
@@ -2464,45 +2463,6 @@
    25.639,
    31.574,
    35.596
-  ]
- },
- "EH": {
-  "iso2": "EH",
-  "iso3": "ESH",
-  "name": "Western Sahara",
-  "geonames_name": "Western Sahara",
-  "capital": "El-Aaiun",
-  "area_km2": 266000.0,
-  "population": 273008,
-  "continent": "AF",
-  "continent_name": "Africa",
-  "tld": ".eh",
-  "currency": "MAD",
-  "currency_name": "Dirham",
-  "phone": "212",
-  "postal_format": "",
-  "postal_regex": "",
-  "languages": [
-   "ar",
-   "mey"
-  ],
-  "neighbours": [
-   "DZ",
-   "MR",
-   "MA"
-  ],
-  "geonameid": 2461445,
-  "drive": "right",
-  "drive_note": "Spanish colony until 1976.",
-  "center": [
-   25.819,
-   -14.0485
-  ],
-  "bbox": [
-   20.928,
-   -17.045,
-   27.462,
-   -9.705
   ]
  },
  "ER": {
@@ -5196,8 +5156,8 @@
   "name": "Morocco",
   "geonames_name": "Morocco",
   "capital": "Rabat",
-  "area_km2": 446550.0,
-  "population": 36029138,
+  "area_km2": 712550.0,
+  "population": 36302146,
   "continent": "AF",
   "continent_name": "Africa",
   "tld": ".ma",
@@ -5213,21 +5173,21 @@
   ],
   "neighbours": [
    "DZ",
-   "EH",
-   "ES"
+   "ES",
+   "MR"
   ],
   "geonameid": 2542007,
   "drive": "right",
   "drive_note": "Under French and Spanish protection until 1956.",
   "center": [
-   33.3921,
-   -6.6295
+   33.2573,
+   -6.7615
   ],
   "bbox": [
-   25.773,
-   -12.945,
-   35.721,
-   -1.796
+   21.594,
+   -16.254,
+   35.717,
+   -1.805
   ]
  },
  "MC": {
@@ -5754,7 +5714,7 @@
   "neighbours": [
    "SN",
    "DZ",
-   "EH",
+   "MA",
    "ML"
   ],
   "geonameid": 2378080,

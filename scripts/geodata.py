@@ -53,7 +53,13 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE.parent / "data"
 GEONAMES = "https://download.geonames.org/export/dump/"
 PLACES_FILE = "cities500"
-CACHE_VERSION = 2
+CACHE_VERSION = 3
+
+# Western Sahara is part of Morocco here. GeoNames codes some of Morocco's southern provinces as "EH" (Laâyoune, Dakhla,
+# Boujdour…) and others as MA (Smara, Tarfaya, Aousserd); every such place is read as MA, in its Moroccan region:
+# Laâyoune–Sakia El Hamra (MA.11) north of ≈ 24° N, Dakhla–Oued Ed-Dahab (MA.12) south of it.
+COUNTRY_MERGE = {"EH": "MA"}
+MA_SOUTH_SPLIT_LAT = 24.0
 
 CONTINENTS = {"AF": "Africa", "AS": "Asia", "EU": "Europe", "NA": "North America", "OC": "Oceania",
               "SA": "South America", "AN": "Antarctica"}
@@ -88,7 +94,7 @@ ALIASES = {
     "taiwan province of china": "TW", "republic of china": "TW", "roc": "TW", "prc": "CN",
     "peoples republic of china": "CN", "mainland china": "CN", "south georgia": "GS", "caribbean netherlands": "BQ",
     "bonaire": "BQ", "saba": "BQ", "sint eustatius": "BQ", "abkhazia": "GE", "south ossetia": "GE",
-    "northern cyprus": "CY", "transnistria": "MD", "somaliland": "SO", "western sahara": "EH",
+    "northern cyprus": "CY", "transnistria": "MD", "somaliland": "SO", "western sahara": "MA", "moroccan sahara": "MA", "eh": "MA", "esh": "MA",
     "ivory coast": "CI", "cabo verde": "CV", "north macedonia": "MK", "republic of north macedonia": "MK",
     "guinea bissau": "GW", "papua new guinea": "PG", "png": "PG", "nz": "NZ", "aus": "AU", "rsa": "ZA",
     "azores": "PT", "madeira": "PT", "canary islands": "ES", "canaries": "ES", "balearic islands": "ES",
@@ -288,8 +294,13 @@ def _parse_geonames(text: io.TextIOBase) -> dict:
         lat.append(float(p[4]))
         lon.append(float(p[5]))
         fcode.append(f"{p[6]}.{p[7]}")
-        cc.append(p[8])
-        a1.append(p[10])
+        c, r = p[8], p[10]
+        if c in COUNTRY_MERGE:
+            c = COUNTRY_MERGE[c]
+            if r not in ("11", "12"):
+                r = "11" if float(p[4]) >= MA_SOUTH_SPLIT_LAT else "12"
+        cc.append(c)
+        a1.append(r)
         pop.append(int(p[14] or 0))
         tz.append(p[17])
         keys = {norm(p[1]), norm(p[2])}
@@ -331,13 +342,30 @@ def places(proxy: str | None = None) -> Places:
     return _load_dump(PLACES_FILE, GEONAMES + f"{PLACES_FILE}.zip", proxy)
 
 
+def _concat(a: Places, b: Places) -> Places:
+    """Two GeoNames dumps as one (b's name index shifted after a's rows)."""
+    n = len(a)
+    index = {k: list(v) for k, v in a.index.items()}
+    for k, v in b.index.items():
+        index.setdefault(k, []).extend(i + n for i in v)
+    d = {k: (np.concatenate([getattr(a, k), getattr(b, k)]) if k in ("lat", "lon", "pop", "gid") else getattr(a, k) + getattr(b, k))
+         for k in ("lat", "lon", "pop", "gid", "name", "cc", "a1", "fcode", "tz")}
+    d["index"] = index
+    return Places(d)
+
+
 @lru_cache(maxsize=8)
 def country_gazetteer(cc: str, proxy: str | None = None) -> Places:
     """Every GeoNames feature in one country (populated places, hills, streams, bridges, schools, farms…)."""
     cc = cc.upper()
     if not re.fullmatch(r"[A-Z]{2}", cc):
         raise ValueError(f"Not an ISO2 country code: {cc}")
-    return _load_dump(f"country_{cc}", GEONAMES + f"{cc}.zip", proxy)
+    cc = COUNTRY_MERGE.get(cc, cc)
+    P = _load_dump(f"country_{cc}", GEONAMES + f"{cc}.zip", proxy)
+    for src, dst in COUNTRY_MERGE.items():  # Morocco's gazetteer includes GeoNames' EH file (see COUNTRY_MERGE)
+        if dst == cc:
+            P = _concat(P, _load_dump(f"country_{src}", GEONAMES + f"{src}.zip", proxy))
+    return P
 
 
 def reverse(lat: float, lon: float, k: int = 1, min_pop: int = 0) -> list[dict]:
@@ -453,6 +481,16 @@ def build_countries(proxy: str | None) -> dict:
                    "currency": p[10], "currency_name": p[11], "phone": p[12], "postal_format": p[13],
                    "postal_regex": p[14], "languages": [x for x in p[15].split(",") if x],
                    "neighbours": [x for x in p[17].split(",") if x], "geonameid": int(p[16] or 0)}
+    # Western Sahara is part of Morocco (COUNTRY_MERGE): its area and population count for MA, borders point to MA
+    for src, dst in COUNTRY_MERGE.items():
+        e = out.pop(src, None)
+        if e and dst in out:
+            out[dst]["area_km2"] += e["area_km2"]
+            out[dst]["population"] += e["population"]
+            out[dst]["neighbours"] += e["neighbours"]
+        for c in out.values():
+            nb = [dst if n == src else n for n in c["neighbours"]]
+            c["neighbours"] = [n for i, n in enumerate(nb) if n != c["iso2"] and n not in nb[:i]]
     # driving side from the bundled Wikipedia-derived table (keyed by English name)
     ds = json.loads((DATA / "driving_side.json").read_text(encoding="utf-8"))
     keys = {norm(v["name"]): k for k, v in out.items()} | {norm(v["geonames_name"]): k for k, v in out.items()}

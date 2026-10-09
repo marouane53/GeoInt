@@ -9,8 +9,7 @@ Drive: L/R. Plates describe private cars (F = front, R = rear). Paint: "—" mea
 
 | Country (ISO2) | Drive | Plate quick look | Road paint | Script / language | Other strong tells |
 |---|---|---|---|---|---|
-| Morocco (MA) | R | white F+R: digits, Arabic letter, prefecture no. 1–89 | white (French practice) | Arabic + French, Tifinagh on official signs | taxi colour = city; 05/06/07 phones; no SV |
-| Western Sahara (EH) | R | Moroccan plates nos. 63, 68–71, 89 | white | Arabic + French | flat hamada; no SV |
+| Morocco (MA) | R | white F+R: digits, Arabic letter, prefecture no. 1–89 | white (French practice) | Arabic + French, Tifinagh on official signs | taxi colour = city; 05/06/07 phones; flat hamada in the southern provinces; no SV |
 | Algeria (DZ) | R | digits only; white F, yellow R; last 2 = wilaya | — | Arabic + French; Tamazight in Kabylie | no SV |
 | Tunisia (TN) | R | white on black, `123 تونس 4567` | — | Arabic + French | SV since 2017 |
 | Libya (LY) | R | black on white, municipality no. + serial + ليبيا | — | Arabic | no SV |
@@ -111,10 +110,10 @@ Other paint: Kenya white edges with solid yellow no-overtaking centre lines (ken
 
 ### Street View coverage (Wikipedia coverage list plus news, checked 2026-10)
 - Official car coverage: ZA, LS, SZ, BW, NA (2024), KE (2018), UG, RW (generation 4 only), NG, GH, SN (GH, SN, UG from 2017), TN (2017), RE, IL, PS (West Bank only), JO, LB, AE, QA, OM (2024).
-- Landmarks or a few places only: EG, TZ, MG (2014), ML, IQ. None official: MA, EH, DZ, LY, SA, IR, KW (announced), BH, YE, SY, ET, SO, MZ, MW, ZM, ZW (unofficial uploads), CI, BJ, TG, BF, CM, CD, MU.
+- Landmarks or a few places only: EG, TZ, MG (2014), ML, IQ. None official: MA, DZ, LY, SA, IR, KW (announced), BH, YE, SY, ET, SO, MZ, MW, ZM, ZW (unofficial uploads), CI, BJ, TG, BF, CM, CD, MU.
 - A panorama in a "none" country is a user upload or trekker; car and camera tells do not apply (see `streetview.md`).
 
-## Morocco (MA), with a Western Sahara note
+## Morocco (MA)
 
 **Quick facts**
 - Right-hand. Plates white front and rear: serial (up to 5 digits), an Arabic letter (أ ب د ه و ط ي) between two bars, then a prefecture/province number 1–89. Temporary `123456 WW`; dealer `12345 W 18` red on white.
@@ -124,7 +123,7 @@ Other paint: Kenya white edges with solid yellow no-overtaking centre lines (ken
 
 ### Moroccan plate: Arabic letter between bars + region number
 - Look for: one-line white plate `serial ‖ letter ‖ number`; two-line plates put the letter and number on top
-- Points to: Morocco; the number is the issuing prefecture: 1 Rabat, 6–13 and 72–74 Casablanca, 14 Mohammedia, 15–16 Fès, 20–21 Meknès, 26–28 Marrakech, 33–34 Agadir, 40–41 Tangier, 44 Tétouan, 48 Oujda, 50 Nador, 59 Kénitra; 63, 68–71 and 89 are in Western Sahara
+- Points to: Morocco; the number is the issuing prefecture: 1 Rabat, 6–13 and 72–74 Casablanca, 14 Mohammedia, 15–16 Fès, 20–21 Meknès, 26–28 Marrakech, 33–34 Agadir, 40–41 Tangier, 44 Tétouan, 48 Oujda, 50 Nador, 59 Kénitra; 63, 68–71 and 89 are the southern provinces (Laâyoune–Sakia El Hamra and Dakhla–Oued Ed-Dahab regions)
 - Strength: strong for the country (national format); medium for the region when several local cars agree
 - Counterexamples: cars travel, and company fleets register at head office; diplomatic (blue), government (white on black) and trailer (red) plates follow other formats
 - Verify: read the number against en.wikipedia.org/wiki/Vehicle_registration_plates_of_Morocco; web search images of the prefecture
@@ -151,7 +150,7 @@ Other paint: Kenya white edges with solid yellow no-overtaking centre lines (ken
 - Atlantic plain (Kénitra–Rabat–Casablanca–El Jadida): flat farmland, eucalyptus windbreaks, dense suburbs; plates 1–4, 6–14, 55, 58–59, 72–74, 81.
 - Middle Atlas (Ifrane, Azrou): cedar and oak forest, steep roofs for snow. High Atlas and the south (Marrakech, Ouarzazate, Drâa, Tinghir): ochre earth-coloured houses and kasbahs, palm groves; Marrakech facades are uniformly ochre-pink (general knowledge).
 - Souss (Agadir, Taroudant): argan trees, greenhouses; plates 33–37. Oriental (Oujda, Nador, Figuig): steppe and bare hills; plates 48–53.
-- Western Sahara: disputed (claimed by Morocco and the Sahrawi Arab Democratic Republic). The populated west is administered by Morocco with Moroccan plates (63, 68–71, 89), phones (05289) and signs; flat hamada, Atlantic cliffs, few settlements.
+- Southern provinces (Laâyoune–Sakia El Hamra, Dakhla–Oued Ed-Dahab: Laâyoune, Boujdour, Smara, Dakhla): flat hamada, Atlantic cliffs, few settlements; Moroccan plates (63, 68–71, 89), phones (05289) and signs. `geodata.py towns MA --admin1 "Laayoune-Sakia El Hamra"` lists their towns.
 
 ## Algeria (DZ)
 
