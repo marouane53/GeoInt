@@ -54,6 +54,24 @@ carries the original caption, date and place.
 
 Without a browser tool, Lens is unavailable: note in the report that it was not tried, and lean harder on crops, keyword image search and the scripted engines.
 
+### Read the whole list before the top hit
+
+Engines rank visual matches by how alike they look, not by whether they show the same place. Lookalikes (the
+same standard design, the same paint scheme, the same chain's fit-out, the same builder's catalogue) crowd the top;
+the actual place often sits further down, and a lookalike can absorb an hour of checking.
+
+1. Save the full list from every engine and crop (page text and a screenshot in `rev/`), then write every place
+   it names into a candidate table: venue, business, street, town, and the company that built, supplied or
+   designed the object when a result names one.
+2. Open first, ahead of rank:
+   - a place named by **two independent results**: its own page and a builder's, supplier's or architect's
+     project page; two unrelated posters; two engines or two different crops;
+   - a place whose **name matches text in the photo**: a word, initials, a logo, even a single letter on a badge,
+     banner or sign. A fragment on a wall or a uniform is often the place's own brand.
+3. Check each named place against two or three fixed features (structure, layout, roof line, skyline, terrain)
+   and drop it with a written reason before going deep on any one.
+4. Stalled for about 15 minutes on one lead? Return to the saved lists and the table before searching wider.
+
 ### Chinese keyword search
 
 General web search tools are often ineffective for Chinese content inside China. Use the script:
@@ -83,6 +101,7 @@ Bing China gives web results (title + link); Baidu Images and Sogou Images give 
 | Old buildings, historic sites | Local culture-and-tourism and protected-heritage-site pages; stock image sites (Visual China Group, Getty, Alamy), whose captions carry place names and years | v004 |
 | Ordinary streets and residential areas | Image search adds little; prioritize geometry and infrastructure; when even the city isn't fixed, sample one page of arterial-road street view per candidate city and compare municipal fixtures (`baidu_pano.py sample`) | — |
 | Sub-brand stores of chain brands (truck service, refurbishment, specialty stores) | **Search opening press releases first** ("开业 / inaugura / abre / opens + sub-brand + state or city"; 开业 = opens), trade media often give the street address; treat the official store locator only as a candidate pool: it doesn't tag sub-brands, and its coordinates may be off by several km | blind test |
+| Built or installed objects (bridges, towers, stadium roofs, sports and play structures, sculptures, shop fit-outs) | The builder's, manufacturer's or architect's project/reference list (often a PDF naming every installation and its town) and the operator's catalogue of its assets (a motorway company's bridges, a chain's branches, a park service's facilities); a results page from such a list also counts as an independent result for the place it names | field tests |
 | Nameless facilities found on satellite imagery (plants, warehouses, farms, mines) | Search the web and news for the facility-type word in the local language + nearby place names, and compare the accompanying photos with the facade; once you find the name, search images another round | v013 |
 | Vehicle livery (bus, taxi, school bus) | `revimg.py --query "<city> <color description> 公交"` (query in Chinese: <city> <color description> bus), and read route signs and company names from the result images; first resolve any place name you read to a district (county) with `poi.py` before using it; don't treat a vehicle from district A as a clue for district B | v014 |
 
@@ -116,6 +135,7 @@ Suits objects that "you can't name, but have a rare shape" (the v004 fountain).
 ## Common mistakes
 
 - Using only one engine and searching only the whole image; after a failure, not changing the image or the engine.
+- Opening the first visual match and spending the session on it, while a lower result named the same place twice or matched a letter or logo in the photo.
 - Turning the "object category" from an AI or image recognition directly into a location ("boat-shaped sculpture → tourist city"); this jump counts only as weak evidence (v005).
 - Getting carried off by the "most famous similar place" the search turns up and forgetting to come back and check bearings and details (the main way the AI failed in v010).
 - Two engines each point at a different city, and you draw a big circle around the midpoint of the two and call it done: instead run a discriminating test and pick one as the main answer (SKILL.md rule 7).

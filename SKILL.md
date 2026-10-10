@@ -197,6 +197,11 @@ Every legible string is a search query. Use your web-search tool aggressively an
   best for finding the original, uncropped or older copies of a photo).
 - A hit is the start of a trail: open the source page, read the caption and the rest of the album, then verify
   the place on the map. A "visually similar" result is a clue, not a location.
+- **Read the whole list before chasing the top hit.** Visual matches are ranked by look, not by place: the first
+  result is often a lookalike, and the right place can sit at rank 10–20. Write down every place the results name,
+  then open first the ones that two independent results name (a place's own page and its builder's or supplier's
+  project page; two engines) and the ones whose name matches text, a logo or even one letter visible in the
+  photo. Check each against two or three fixed features before going deep on one (`references/search.md` §1).
 
 ## Step 4 — Country (when Step 1–3 did not already settle it)
 
@@ -389,6 +394,8 @@ location becomes known, record it: `photo_session.py truth <folder> --latitude �
 
 - Quick mode: stop when one decisive check confirms the gut call at the level the user asked for.
 - Reverse search: three different queries/crops with nothing useful → stop and return to the image.
+- A lead that has not confirmed in about 15 minutes: go back to every result list you saved (all engines, all
+  crops) and the places they name before widening the search; the answer is often already in them.
 - Don't scan candidates one by one while they are still inseparable: run a discriminating test first
   (`board.py next` says which).
 - Look only at the machine's top results (top 30 satellite cells, the top 15–40 sweep results and their
