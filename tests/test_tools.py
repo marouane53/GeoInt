@@ -320,6 +320,19 @@ class NewToolTests(unittest.TestCase):
             with Image.open(td / "m.jpg") as m:
                 self.assertEqual(m.size[1], 300 + 34)
                 self.assertGreater(m.size[0], 400 + 500 * 300 // 360)
+            # the workflow's layout: spec saved in evidence/, image paths relative to the session folder (the cwd)
+            import os
+            (td / "evidence").mkdir()
+            for n in ("a.jpg", "b.jpg"):
+                (td / n).rename(td / "evidence" / n)
+            spec2 = dict(spec, left={"image": "evidence/a.jpg"}, right={"image": "evidence/b.jpg"})
+            old = os.getcwd()
+            os.chdir(td)
+            try:
+                evidence.build_match(spec2, td / "evidence", td / "evidence" / "m2.jpg")
+            finally:
+                os.chdir(old)
+            self.assertTrue((td / "evidence" / "m2.jpg").exists())
 
     def test_refsheet_towns_sample_inside_each_town(self):
         import refsheet

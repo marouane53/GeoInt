@@ -45,8 +45,20 @@ from baidu_pano import _font  # noqa: E402
 from tiles import Mosaic  # noqa: E402
 
 
+def _path(base: Path, rel: str) -> Path:
+    """An image path from a spec: absolute, relative to the spec's folder, or relative to the working directory (the
+    session folder, where the workflow writes session-relative paths even when the spec itself sits in evidence/)."""
+    p = Path(rel)
+    if p.is_absolute():
+        return p
+    for cand in (base / p, Path.cwd() / p):
+        if cand.exists():
+            return cand
+    raise SystemExit(f"image {rel!r} not found next to the spec ({base}) or in the working directory ({Path.cwd()})")
+
+
 def build(spec: dict, base: Path, out: Path) -> None:
-    map_path = base / spec["map"]
+    map_path = _path(base, spec["map"])
     m = Mosaic(map_path)
     im = Image.open(map_path).convert("RGBA")
     scale_font = max(im.size) / 1400
@@ -109,7 +121,7 @@ def build(spec: dict, base: Path, out: Path) -> None:
         S.paste(im, (0, 0))
         d = ImageDraw.Draw(S)
         for k, (p, lines) in enumerate(zip(panels, lines_per)):
-            pim = Image.open(base / p["image"]).convert("RGB")
+            pim = Image.open(_path(base, p["image"])).convert("RGB")
             pim.thumbnail((pw, ph))                        # keep aspect ratio, centered with black borders
             S.paste(pim, (k * pw + (pw - pim.width) // 2, im.size[1] + cap_h + (ph - pim.height) // 2))
             for li, text in enumerate(lines):
@@ -128,7 +140,7 @@ def build_match(spec: dict, base: Path, out: Path) -> None:
             "pairs": [{"color": "#ff5bbf", "label": "balcony", "a": [x,y], "b": [x,y]}, ...], "width": 1600}
     a is a pixel in the left image, b a pixel in the right image (original pixels, before scaling)."""
     def load(side):
-        im = Image.open(base / side["image"]).convert("RGB")
+        im = Image.open(_path(base, side["image"])).convert("RGB")
         return im, im.size
     lim, (lw, lh) = load(spec["left"])
     rim, (rw, rh) = load(spec["right"])
@@ -145,15 +157,23 @@ def build_match(spec: dict, base: Path, out: Path) -> None:
     d.text((lim.width + gap + 6, 6), spec["right"].get("caption", "reference"), font=f, fill="white")
     xoff = lim.width + gap
     r = 6
-    for p in spec.get("pairs", []):
-        col = p.get("color", "#ffdd33")
-        ax, ay = p["a"][0] * lsc, p["a"][1] * lsc + cap
-        bx, by = p["b"][0] * rsc + xoff, p["b"][1] * rsc + cap
-        d.line([(ax, ay), (bx, by)], fill=col, width=2)
-        for cx, cy in ((ax, ay), (bx, by)):
+    pts = [(p.get("color", "#ffdd33"), p.get("label"), (p["a"][0] * lsc, p["a"][1] * lsc + cap),
+            (p["b"][0] * rsc + xoff, p["b"][1] * rsc + cap)) for p in spec.get("pairs", [])]
+    for col, _, a, b in pts:
+        d.line([a, b], fill=col, width=2)
+    for col, _, a, b in pts:
+        for cx, cy in (a, b):
             d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=col, width=3)
-        if p.get("label"):
-            d.text((ax + 8, ay - 20), p["label"], font=_font(18), fill=col)
+    lf = _font(18)
+    for col, label, (ax, ay), _ in pts:                     # labels last, on a dark box, kept inside the left image
+        if not label:
+            continue
+        bb = d.textbbox((0, 0), label, font=lf)
+        tw, th = bb[2] - bb[0], bb[3] - bb[1]
+        x = min(max(4, ax + 10), lim.width - tw - 10)
+        y = min(max(cap + 4, ay - th - 14), H + cap - th - 10)
+        d.rectangle([x - 4, y - 3, x + tw + 4, y + th + 7], fill=(0, 0, 0))
+        d.text((x, y), label, font=lf, fill=col)
     out.parent.mkdir(parents=True, exist_ok=True)
     S.save(out, quality=90)
 
